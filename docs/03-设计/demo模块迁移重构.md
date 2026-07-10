@@ -378,11 +378,11 @@ return current_step                   // pending/rejected 停在当前
 **重构方案：**
 ```
 → 迁移到 RuoYi：
-  1. 替换 RuoYi 的 login.vue（位于 src/views/login.vue）
-  2. 保留当前 170 行代码，仅调整：
-     - API 调用方式（RuoYi 用自己的 auth API）
-     - 路由跳转（RuoYi 的跳转方式）
-  3. CSS 特效完全复用
+  1. 删除 RuoYi 单文件 `src/views/login.vue`
+  2. 新建目录 `src/views/login/`，将 v1 代码移入 `index.vue`（方案 A，见 ADR D23）
+  3. 更新 `src/router/index.js` 中的路由引用为 `import('@/views/login/index.vue')`
+  4. 保留当前 170 行代码，仅调整 API 调用方式（RuoYi 用自己的 auth API）和路由跳转
+  5. CSS 特效完全复用；图片资源迁移到 `src/assets/`
 ```
 
 ### 3.2 数据大屏主组件（`frontend/src/components/screen/DataScreen.vue`）
@@ -588,7 +588,7 @@ const GEO = {
   └── api/contract.py       →  新建 app/api/v1/endpoints/biz_contract.py
 
 前端 frontend/src/
-  ├── views/login/         →  替换 RuoYi 的 views/login.vue
+  ├── views/login/         →  删除 RuoYi 的 views/login.vue，新建 views/login/index.vue（ADR D23）
   ├── views/contract/       →  新建 views/biz/contract/
   ├── views/approval/       →  新建 views/biz/approval/
   ├── views/screen/         →  新建 views/screen/
@@ -621,8 +621,10 @@ const GEO = {
 │  → 合计约 716 行 Vue 代码                                  │
 │                                                             │
 │  第4步：登录页迁移（半天）                                 │
-│  ├── 替换 RuoYi 的 login.vue                              │
-│  └── 复用 CSS 特效（170行）                               │
+│  ├── 删除 RuoYi 的 src/views/login.vue                  │
+│  ├── 新建 src/views/login/ 目录，放入 index.vue         │
+│  ├── 更新 router/index.js 中的 import 路径               │
+│  └── 复用 CSS 特效（170行）                             │
 │                                                             │
 │  第5步：数据大屏迁移（2天）                                │
 │  ├── 新建 views/screen/index.vue（327行）                  │

@@ -1,6 +1,6 @@
 # 架构决策记录（ADR）
 
-> 文档版本：v1.0  
+> 文档版本：v1.1  
 > 编写日期：2026-07-10  
 > 文档定位：记录项目关键架构决策、业务决策及其 rationale；作为后续开发、评审、新人 onboarding 的依据。
 
@@ -25,6 +25,7 @@
 | D13 | AI 能力选型 | 规则引擎保底 + 大模型可选 | ✅ 已确认 |
 | D14 | 小程序技术栈 | 微信小程序 | ✅ 已确认 |
 | D15 | 数据库选型 | MySQL 8.0 | ✅ 已确认 |
+| D23 | 前端登录页文件组织 | 科技风登录页用 `login/index.vue` 目录结构，替换 RuoYi 原生 `login.vue` 单文件 | ✅ 已确认 |
 
 ---
 
@@ -264,6 +265,28 @@ draft ──提交──► pending ──审批通过──► approved
 
 ---
 
+### D23：前端登录页文件组织
+
+**问题**：RuoYi 前端登录页是单文件 `src/views/login.vue`，v1 Demo 登录页是目录 `src/views/login/index.vue`；科技风登录页迁移后应采用哪种组织方式？
+
+**决策**：**采用目录结构 `src/views/login/index.vue`，替换 RuoYi 原生单文件 `login.vue`**。
+
+**Rationale**：
+- v1 Demo 所有页面均采用「目录 + index.vue」风格（`contract/`、`approval/`、`screen/` 等），登录页保持一致有利于代码库风格统一，降低迁移后维护复杂度
+- RuoYi 原生系统页面（`views/system/`、`views/monitor/`）采用目录风格，登录页改用目录后与 RuoYi 业务模块风格对齐
+- 目录结构为后续登录相关子组件（`components/LoginForm.vue`、`components/RegisterDialog.vue`）留出扩展空间
+- v1 Demo 的登录页代码行数仅 170 行，单文件体积小，目录开销可忽略
+
+**实现方式**：
+1. 删除 RuoYi 原生 `src/views/login.vue`
+2. 新建目录 `src/views/login/`，放入 `index.vue`
+3. 在 `src/router/index.js` 中将路由引用从 `import('@/views/login.vue')` 改为 `import('@/views/login/index.vue')`
+4. v1 Demo 登录页中引用的图片/样式资源需同步迁移到 `src/assets/` 下
+
+**状态流转**：🔴 已决策，待实施
+
+---
+
 ## 三、决策影响矩阵
 
 | 决策 | 影响模块 | 影响范围 | 是否需要重构 |
@@ -283,6 +306,7 @@ draft ──提交──► pending ──审批通过──► approved
 | D13 | AI 模块 | AI 诊断、对话 | 否 |
 | D14 | 小程序 | 移动端 | 否 |
 | D15 | 数据库 | 全系统 | 否 |
+| D23 | 前端登录页 | 路由、前端构建 | 否（仅文件重组） |
 
 ---
 
@@ -311,6 +335,7 @@ draft ──提交──► pending ──审批通过──► approved
 | 2026-07-10 | D04 | 合同编号先手动输入，自动生成为后续优化 | 快速上线 | 产品 |
 | 2026-07-10 | D05 | 经营数据保持手工录入，不与合同自动汇总 | 简化一期开发 | 产品 |
 | 2026-07-10 | D06 | 明确 `party_a` = 甲方（客户），`party_b` = 乙方（本司） | 字段语义不清晰 | 产品 |
+| 2026-07-10 | D23 | 新增决策：前端登录页采用 `login/index.vue` 目录结构，替换 RuoYi 原生 `login.vue` 单文件 | 消除登录页迁移方案歧义，统一 v1 Demo 页面目录风格 | 产品/技术 |
 
 ---
 
