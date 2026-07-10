@@ -1,6 +1,6 @@
 # API 设计文档
 
-> 文档版本：v1.0  
+> 文档版本：v1.1  
 > 创建日期：2026-07-10  
 > 文档目的：定义系统前后端 API 接口规范，作为前后端联调和对齐的依据  
 > 设计原则：沿用 RuoYi-FastAPI 原生 API 规范，业务模块采用相同风格
@@ -1178,7 +1178,439 @@ GET /biz/operation/kpi
 
 ---
 
-## 十一、通用接口
+## 十一、财务记录模块
+
+> ADR D10：银行对账采用 CSV 导入，不做直连银行 API。
+> 财务记录关联合同（可选）和渠道（OTA 销售场景）。
+
+### 11.1 财务记录列表
+
+```
+GET /biz/finance/list
+```
+
+**请求参数：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| pageNum | int | 否 | 页码，默认 1 |
+| pageSize | int | 否 | 每页条数，默认 10 |
+| contractId | long | 否 | 关联合同 ID |
+| channelId | long | 否 | 关联渠道 ID |
+| financeType | string | 否 | 财务类型：`income`=收入 / `expense`=支出 |
+| bizDate | string | 否 | 业务日期（yyyy-MM-dd） |
+| beginTime | string | 否 | 开始日期（yyyy-MM-dd） |
+| endTime | string | 否 | 结束日期（yyyy-MM-dd） |
+
+**响应示例：**
+
+```json
+{
+  "code": 200,
+  "msg": "操作成功",
+  "rows": [
+    {
+      "financeId": 1,
+      "contractId": 10,
+      "contractNo": "HT-2026-001",
+      "channelId": 3,
+      "channelName": "美团到综",
+      "invoiceId": 5,
+      "financeType": "income",
+      "financeTypeLabel": "收入",
+      "amount": 50000.00,
+      "bizDate": "2026-06-15",
+      "remark": "6月结算款",
+      "createTime": "2026-06-20 10:00:00"
+    }
+  ],
+  "total": 120,
+  "pageNum": 1,
+  "pageSize": 10,
+  "success": true
+}
+```
+
+### 11.2 新增财务记录
+
+```
+POST /biz/finance
+```
+
+**请求体：**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| contractId | long | 否 | 关联合同 ID |
+| channelId | long | 否 | 关联渠道 ID |
+| invoiceId | long | 否 | 关联发票 ID |
+| financeType | string | ✅ | `income` / `expense` |
+| amount | decimal | ✅ | 金额 |
+| bizDate | string | ✅ | 业务日期（yyyy-MM-dd） |
+| remark | string | 否 | 备注 |
+
+### 11.3 编辑财务记录
+
+```
+PUT /biz/finance
+```
+
+请求体同 11.2，增加 `financeId` 字段。
+
+### 11.4 删除财务记录
+
+```
+DELETE /biz/finance/{ids}
+```
+
+**参数：** `ids` — 主键 ID，多个用逗号分隔。
+
+### 11.5 银行对账 CSV 导入
+
+```
+POST /biz/finance/import
+```
+
+**Content-Type：** `multipart/form-data`
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| file | file | ✅ | 银行 CSV 文件（GBK 编码） |
+| channelId | long | 否 | 渠道 ID（自动关联渠道） |
+
+**CSV 格式：**
+
+```csv
+交易日期,凭证号,对方账户,金额,摘要
+2026-06-15,TXN001,美团结算户,50000.00,6月销售结算
+2026-06-15,TXN002,抖音结算户,32000.00,6月销售结算
+```
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "msg": "导入成功，共处理 25 条记录",
+  "data": {
+    "total": 25,
+    "success": 24,
+    "failed": 1,
+    "errors": [
+      {"row": 5, "reason": "金额格式错误"}
+    ]
+  }
+}
+```
+
+### 11.6 财务统计
+
+```
+GET /biz/finance/stats
+```
+
+**参数：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| beginTime | string | ✅ | 开始日期 |
+| endTime | string | ✅ | 结束日期 |
+| channelId | long | 否 | 渠道筛选 |
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "msg": "操作成功",
+  "data": {
+    "totalIncome": 1250000.00,
+    "totalExpense": 680000.00,
+    "netProfit": 570000.00,
+    "incomeCount": 45,
+    "expenseCount": 32
+  },
+  "success": true
+}
+```
+
+---
+
+## 十二、OTA 数据导入模块
+
+> ADR D09：先做 CSV 导入兜底，API 对接作为第二阶段。
+> 本模块为第一阶段实现。
+
+### 12.1 渠道订单 CSV 导入
+
+```
+POST /biz/ota/import
+```
+
+**Content-Type：** `multipart/form-data`
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| file | file | ✅ | 渠道订单 CSV |
+| channelId | long | ✅ | 渠道 ID（`biz_channel.id`） |
+| importMode | string | 否 | `merge`=合并更新 / `replace`=覆盖（默认 merge） |
+
+**CSV 格式（美团示例）：**
+
+```csv
+订单号,票种名称,客户名称,数量,单价,金额,下单时间,核销时间,状态
+ORD20260615001,景区门票-成人票,张三,2,100.00,200.00,2026-06-15 10:30:00,2026-06-15 14:00:00,已核销
+```
+
+**CSV 格式（抖音示例）：**
+
+```csv
+订单ID,商品名称,买家昵称,数量,单价,实付金额,下单时间,核销时间,状态
+DY20260615001,酒店住宿-标准间,李四,1,380.00,350.00,2026-06-15 09:00:00,2026-06-15 15:00:00,已核销
+```
+
+> 不同渠道 CSV 格式不同，后端根据 `channelId` 匹配对应解析器。
+> 解析器可通过 `biz_channel.channel_config`（JSON）配置字段映射。
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "msg": "导入成功",
+  "data": {
+    "total": 100,
+    "success": 98,
+    "failed": 2,
+    "errors": [
+      {"row": 3, "orderNo": "ORD20260615003", "reason": "票种[无效票种]在系统中不存在"},
+      {"row": 7, "orderNo": "ORD20260615007", "reason": "金额校验不通过：csv=150.00,系统=145.00"}
+    ]
+  }
+}
+```
+
+### 12.2 导入记录查询
+
+```
+GET /biz/ota/import-log/list
+```
+
+**参数：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| pageNum | int | 否 | 页码 |
+| pageSize | int | 否 | 每页条数 |
+| channelId | long | 否 | 渠道 ID |
+| beginTime | string | 否 | 开始时间 |
+| endTime | string | 否 | 结束时间 |
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "msg": "操作成功",
+  "rows": [
+    {
+      "logId": 1,
+      "channelId": 1,
+      "channelName": "美团到综",
+      "fileName": "meituan_20260615.csv",
+      "total": 100,
+      "success": 98,
+      "failed": 2,
+      "operator": "admin",
+      "createTime": "2026-06-15 16:00:00"
+    }
+  ],
+  "total": 5,
+  "success": true
+}
+```
+
+### 12.3 渠道订单查询
+
+```
+GET /biz/ota/order/list
+```
+
+**参数：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| pageNum | int | 否 | 页码 |
+| pageSize | int | 否 | 每页条数 |
+| channelId | long | 否 | 渠道 ID |
+| ticketId | long | 否 | 票种 ID |
+| orderStatus | string | 否 | 订单状态：`paid`=已支付 / `used`=已核销 / `refunded`=已退款 |
+| beginTime | string | 否 | 下单开始时间 |
+| endTime | string | 否 | 下单结束时间 |
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "msg": "操作成功",
+  "rows": [
+    {
+      "orderId": 1,
+      "channelId": 1,
+      "channelName": "美团到综",
+      "orderNo": "ORD20260615001",
+      "ticketId": 5,
+      "ticketName": "景区门票-成人票",
+      "customerName": "张三",
+      "quantity": 2,
+      "unitPrice": 100.00,
+      "totalAmount": 200.00,
+      "orderStatus": "used",
+      "orderStatusLabel": "已核销",
+      "orderTime": "2026-06-15 10:30:00",
+      "useTime": "2026-06-15 14:00:00"
+    }
+  ],
+  "total": 980,
+  "success": true
+}
+```
+
+---
+
+## 十三、战略驾驶舱模块
+
+> 经营总览：合同统计、渠道收入、经营数据趋势。
+> 数据来源于 `biz_contract`、`biz_channel`、`biz_finance`、`biz_operation_data` 的聚合查询。
+
+### 13.1 合同统计概览
+
+```
+GET /biz/cockpit/contract/stats
+```
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "msg": "操作成功",
+  "data": {
+    "totalContracts": 156,
+    "pendingContracts": 12,
+    "approvedContracts": 138,
+    "rejectedContracts": 6,
+    "totalAmount": 5800000.00,
+    "approvedAmount": 5200000.00,
+    "byContractType": {
+      "payment": {"count": 45, "amount": 3200000.00},
+      "business": {"count": 111, "amount": 2600000.00}
+    }
+  },
+  "success": true
+}
+```
+
+### 13.2 渠道收入排行
+
+```
+GET /biz/cockpit/channel/revenue
+```
+
+**参数：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| beginTime | string | 否 | 开始月份（yyyy-MM） |
+| endTime | string | 否 | 结束月份（yyyy-MM） |
+| topN | int | 否 | 返回前 N 名，默认 10 |
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "msg": "操作成功",
+  "data": [
+    {"rank": 1, "channelId": 1, "channelName": "美团到综", "totalAmount": 1800000.00, "orderCount": 3200},
+    {"rank": 2, "channelId": 2, "channelName": "抖音生活服务", "totalAmount": 1200000.00, "orderCount": 2800},
+    {"rank": 3, "channelId": 3, "channelName": "携程商旅", "totalAmount": 850000.00, "orderCount": 950}
+  ],
+  "success": true
+}
+```
+
+### 13.3 经营数据趋势
+
+```
+GET /biz/cockpit/operation/trend
+```
+
+**参数：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| beginMonth | string | ✅ | 开始月份（yyyy-MM） |
+| endMonth | string | ✅ | 结束月份（yyyy-MM） |
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "msg": "操作成功",
+  "data": {
+    "monthly": [
+      {"month": "2026-01", "revenue": 2800000.00, "profit": 950000.00, "cost": 1850000.00, "customerCount": 38},
+      {"month": "2026-02", "revenue": 3100000.00, "profit": 1100000.00, "cost": 2000000.00, "customerCount": 42}
+    ],
+    "total": {
+      "revenue": 5800000.00,
+      "profit": 2050000.00,
+      "cost": 3750000.00
+    }
+  },
+  "success": true
+}
+```
+
+### 13.4 驾驶舱首页聚合
+
+```
+GET /biz/cockpit/dashboard
+```
+
+**响应：**
+
+```json
+{
+  "code": 200,
+  "msg": "操作成功",
+  "data": {
+    "summary": {
+      "pendingApprovals": 12,
+      "todayRevenue": 85000.00,
+      "monthRevenue": 3100000.00,
+      "customerCount": 42
+    },
+    "contractStats": {"total": 156, "approved": 138, "rejected": 6, "pending": 12},
+    "channelRevenue": [
+      {"channelName": "美团到综", "amount": 1800000.00, "growth": 15.0},
+      {"channelName": "抖音生活服务", "amount": 1200000.00, "growth": 28.5}
+    ],
+    "operationTrend": [
+      {"month": "2026-01", "revenue": 2800000.00},
+      {"month": "2026-02", "revenue": 3100000.00}
+    ]
+  },
+  "success": true
+}
+```
+
+---
+
+## 十四、通用接口
 
 ### 11.1 文件上传
 
@@ -1234,7 +1666,7 @@ GET /system/dict/data/type/{dictType}
 
 ---
 
-## 十二、权限标识汇总
+## 十五、权限标识汇总
 
 | 权限标识 | 说明 | 适用模块 |
 |----------|------|----------|
@@ -1269,7 +1701,7 @@ GET /system/dict/data/type/{dictType}
 
 ---
 
-## 十三、与其他设计文档的对应关系
+## 十六、与其他设计文档的对应关系
 
 | 本文 API | 对应业务规则 | 关联文档 |
 |----------|--------------|----------|
@@ -1281,6 +1713,9 @@ GET /system/dict/data/type/{dictType}
 | 5.4 新建合同 | party_a=甲方（客户），party_b=乙方（本司） | ADR-架构决策记录.md D06 |
 | 5.4 新建合同 | contract_no 手动输入 | ADR-架构决策记录.md D04 |
 | 10.1~10.4 经营数据 | 手工录入，不与合同汇总 | ADR-架构决策记录.md D05 |
+| 11.5 银行对账导入 | CSV 导入，不做直连银行 API | ADR-架构决策记录.md D10 |
+| 12.1~12.3 OTA 导入 | 先 CSV 兜底，API 对接为第二阶段 | ADR-架构决策记录.md D09 |
+| 13.1~13.4 战略驾驶舱 | 聚合合同/渠道/财务/经营数据 | 数据库设计.md 第四章 |
 
 ---
 

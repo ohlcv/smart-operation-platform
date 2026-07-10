@@ -4,6 +4,44 @@
 
 ---
 
+## 2026-07-10 — v2.3 施工前准备完成
+
+### 代码变更
+
+**后端骨架 — `ruoyi-fastapi-backend/module_biz/`**
+- 新建 `module_biz/` 目录及子层 `controller/dao/service/entity/do/entity/vo`
+- 创建 `biz_controller.py`：stub 路由 `/biz/health`，遵循 `APIRouterPro` 规范，可被自动扫描注册
+- 各子层 `__init__.py` 占位文件
+
+**前端骨架 — `ruoyi-fastapi-frontend/src/views/biz/`**
+- 新建 9 个业务子模块目录：`contract/approval/customer/channel/invoice/finance/operation/ota/cockpit`
+- 每个子目录含 `index.vue` stub 页面，标注 `<!-- TODO: 实现... -->`
+
+### 文档变更
+
+- `03-设计/API设计文档.md` v1.1：新增三个章节
+  - **十一、财务记录模块**（11.1~11.6）：财务记录 CRUD + 银行对账 CSV 导入 + 统计
+  - **十二、OTA 数据导入模块**（12.1~12.3）：渠道订单 CSV 导入 + 导入记录查询 + 订单查询
+  - **十三、战略驾驶舱模块**（13.1~13.4）：合同统计 + 渠道收入排行 + 经营数据趋势 + 驾驶舱首页聚合
+  - 章节编号顺延：十一→十四，十二→十五，十三→十六
+- `04-开发/开发进度台账.md` v2.1：R3/R4 🔴 风险标注为 ✅ 已解决
+
+---
+
+## 2026-07-10 — v2.3 骨架搭建 + API 文档补全
+
+### 代码改动
+
+- `ruoyi-fastapi-backend/module_biz/`：新建完整业务模块骨架，包含 `controller/dao/service/entity/do&vo` 目录、`__init__.py`、`biz_controller.py` stub（`/biz/health` 健康检查，被 APIRouterPro 自动扫描注册）
+- `ruoyi-fastapi-frontend/src/views/biz/`：新建 9 个业务子模块目录 `contract/approval/customer/channel/invoice/finance/operation/ota/cockpit`，每个含 `index.vue` stub
+
+### 文档修订
+
+- `04-开发/开发进度台账.md` v2.0 → v2.1：R3/R4 风险标记为 ✅ 已解决
+- `03-设计/API设计文档.md` v1.0 → v1.1：新增第十一/十二/十三章（财务记录 6 个 API / OTA 导入 3 个 API / 战略驾驶舱 4 个 API），章节编号顺延（通用接口→十四，权限标识→十五，对应关系→十六）
+
+---
+
 ## 2026-07-10 — v2.2 台账精细化 + ADR D23 登录页决策
 
 ### 新增文档/决策
