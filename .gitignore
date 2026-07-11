@@ -1,6 +1,17 @@
 # macOS
 .DS_Store
 
+# 后端运行时
+ruoyi-fastapi-backend/.backend.pid
+
+# 前端/构建产物
+ruoyi-fastapi-frontend/dist/
+ruoyi-fastapi-frontend/.vite/
+ruoyi-fastapi-frontend/node_modules/
+
+# 本地开发
+.ruoyi-fastapi-backend/.env.*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
