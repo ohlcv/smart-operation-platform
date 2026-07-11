@@ -54,7 +54,7 @@ async def get_finance_list(
 
 
 @finance_controller.get(
-    '/{entry_id}',
+    '/{entry_id:int}',
     summary='财务流水详情',
     response_model=DataResponseModel,
     dependencies=[UserInterfaceAuthDependency('finance:list')],
@@ -107,7 +107,7 @@ async def update_finance(
 
 
 @finance_controller.delete(
-    '/{entry_id}',
+    '/{entry_id:int}',
     summary='删除流水',
     description='仅未对账的流水可删',
     response_model=ResponseBaseModel,

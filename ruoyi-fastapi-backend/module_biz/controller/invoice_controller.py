@@ -56,7 +56,7 @@ async def get_invoice_list(
 
 
 @invoice_controller.get(
-    '/{invoice_id}',
+    '/{invoice_id:int}',
     summary='发票详情',
     response_model=DataResponseModel,
     dependencies=[UserInterfaceAuthDependency('invoice:list')],
@@ -110,7 +110,7 @@ async def update_invoice(
 
 
 @invoice_controller.delete(
-    '/{invoice_id}',
+    '/{invoice_id:int}',
     summary='删除发票',
     description='仅待开（pending）状态可删；issued/void 不可删',
     response_model=ResponseBaseModel,

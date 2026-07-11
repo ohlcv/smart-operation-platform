@@ -54,7 +54,7 @@ async def get_operation_list(
 
 
 @operation_controller.get(
-    '/{op_id}',
+    '/{op_id:int}',
     summary='经营数据详情',
     response_model=DataResponseModel,
     dependencies=[UserInterfaceAuthDependency('operation:list')],
@@ -107,7 +107,7 @@ async def update_operation(
 
 
 @operation_controller.delete(
-    '/{op_id}',
+    '/{op_id:int}',
     summary='删除经营数据',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('operation:delete')],

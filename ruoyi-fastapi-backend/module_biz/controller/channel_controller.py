@@ -62,7 +62,7 @@ async def get_channel_list(
 
 
 @channel_controller.get(
-    '/{channel_id}',
+    '/{channel_id:int}',
     summary='获取渠道详情',
     description='按 ID 获取渠道完整信息',
     response_model=DataResponseModel,
