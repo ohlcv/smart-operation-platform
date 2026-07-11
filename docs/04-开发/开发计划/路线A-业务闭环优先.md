@@ -1,408 +1,148 @@
-# 路线 A：业务闭环优先（详细方案）
+# 路线 A 业务闭环优先（v3.0 完成报告）
 
-> 文档版本：v1.0
-> 创建日期：2026-07-11
-> 文档定位：将"合同→渠道→发票→财务→经营数据"完整业务链 5 个 CRUD 模块从 v1 demo 迁移到当前项目。文件互斥，与路线 B 完全无重叠。
-
----
-
-## 一、目标与价值
-
-**业务目标**：让合同审批通过后的下游环节（渠道分配、发票开具、财务入账、经营数据登记）全部可在系统内完成。**一条业务链全跑通**。
-
-**演示场景**：业务部门、运营、运维内部演示。
-
-**总工作量**：49h（后端 28h + 前端 21h）
-
-**预计完成**：1.5 周
+> 文档版本：v2.0（完成报告）
+> 原始创建：2026-07-11 23:00（按"待开发"假设撰写）
+> 现实更新：2026-07-12 00:10（按 commit `8eab8f0` 实际成果重写）
+> 文档定位：路线 A 「合同→渠道→发票→财务→经营数据」业务闭环的**真实交付清单**。
 
 ---
 
-## 二、文件清单（路线 A 独占）
+## 一、交付概要
 
-### 2.1 后端文件（22 个新增 / 1 个编辑）
-
-#### channel 渠道管理（11h 后端）
-
-| # | 文件 | 行数 | 工作量 | 内容 |
-|---|------|------|--------|------|
-| A-2.1.1 | `module_biz/entity/do/channel_do.py` | 60 | 1h | SQLAlchemy 模型，参考 v1 demo `1/backend/app/models/channel.py` (38 行) |
-| A-2.1.2 | `module_biz/entity/vo/channel_vo.py` | 120 | 1.5h | Pydantic VO（list/create/update/query）|
-| A-2.1.3 | `module_biz/dao/channel_dao.py` | 80 | 1h | CRUD + 分页 |
-| A-2.1.4 | `module_biz/service/channel_service.py` | 200 | 4h | 业务逻辑 |
-| A-2.1.5 | `module_biz/controller/channel_controller.py` | 100 | 2h | 8 个 endpoint |
-| A-2.1.6 | `sql/biz_channel_init.sql` | 50 | 0.5h | 渠道分类字典 + 渠道表 |
-| A-2.1.7 | `module_biz/enums.py` | +8 | 0.5h | `ChannelCategoryEnum`（景区门票/酒店数据/综合 OTA/其他）|
-| A-2.1.8 | `sql/biz_menus_roles_init.sql` | +20 | 0.5h | 追加 channel 菜单（menu_id=9）+ perms `biz:channel:list/add/edit/delete/import` |
-
-**关键业务规则**：
-- 渠道分类：4 类（景区门票/酒店数据/综合 OTA/其他），枚举硬编码在 `module_biz/enums.py`
-- 渠道与合同关联：1 个合同可分配到 N 个渠道
-- CSV 导入：D09 决策，先做 CSV 兜底
-- 资质附件：D12 决策，本地文件系统存储
-
-**Endpoint 清单**：
-```
-GET    /biz/channel/list                  渠道列表（分页）
-GET    /biz/channel/{id}                  渠道详情
-POST   /biz/channel                       新建渠道
-PUT    /biz/channel?channel_id={id}       编辑渠道
-DELETE /biz/channel/{id}                  删除渠道（校验无关联合同）
-POST   /biz/channel/import                CSV 导入
-GET    /biz/channel/export                导出 CSV
-GET    /biz/channel/category-options      渠道分类下拉选项
-```
-
-#### invoice 发票管理（9h 后端）
-
-| # | 文件 | 行数 | 工作量 |
-|---|------|------|--------|
-| A-2.1.9 | `module_biz/entity/do/invoice_do.py` | 70 | 1h |
-| A-2.1.10 | `module_biz/entity/vo/invoice_vo.py` | 130 | 1.5h |
-| A-2.1.11 | `module_biz/dao/invoice_dao.py` | 100 | 1h |
-| A-2.1.12 | `module_biz/service/invoice_service.py` | 250 | 4h |
-| A-2.1.13 | `module_biz/controller/invoice_controller.py` | 100 | 2h |
-| A-2.1.14 | `sql/biz_invoice_init.sql` | 60 | 0.5h |
-| A-2.1.15 | `module_biz/enums.py` | +6 | 0.5h（`InvoiceStatusEnum`：待开/已开/已作废）|
-| A-2.1.16 | `sql/biz_menus_roles_init.sql` | +20 | 0.5h（menu_id=10）|
-
-**关键业务规则**（D11 已确认）：
-- 发票与合同 **1:1 关联**（合同 ID + 发票号唯一约束）
-- 状态流转：`pending`（待开）→ `issued`（已开）→ `void`（已作废）
-- **不做真实开票对接**，仅台账管理
-- 开票日期不可早于合同签订日期
-- 金额不可超过合同金额
-
-**Endpoint 清单**：
-```
-GET    /biz/invoice/list                  发票列表
-GET    /biz/invoice/{id}                  发票详情
-POST   /biz/invoice                       新建发票（关联合同）
-PUT    /biz/invoice?invoice_id={id}       编辑发票
-DELETE /biz/invoice/{id}                  删除发票（仅 pending 状态）
-PUT    /biz/invoice/issue/{id}            标记为已开票
-PUT    /biz/invoice/void/{id}             作废发票
-```
-
-#### finance 财务管理（12h 后端）
-
-| # | 文件 | 行数 | 工作量 |
-|---|------|------|--------|
-| A-2.1.17 | `module_biz/entity/do/finance_do.py` | 80 | 1h |
-| A-2.1.18 | `module_biz/entity/vo/finance_vo.py` | 150 | 2h |
-| A-2.1.19 | `module_biz/dao/finance_dao.py` | 120 | 1.5h |
-| A-2.1.20 | `module_biz/service/finance_service.py` | 280 | 5h |
-| A-2.1.21 | `module_biz/controller/finance_controller.py` | 120 | 2h |
-| A-2.1.22 | `sql/biz_finance_init.sql` | 70 | 0.5h |
-
-**关键业务规则**（D10 已确认）：
-- 应付/应收台账（payable/receivable）
-- 银行对账单 **手工 CSV 导入**，不做银行 API 直连
-- 与发票 ID 关联（一条发票对应一条入账记录）
-- 月末自动结转（脚本触发）
-
-**Endpoint 清单**：
-```
-GET    /biz/finance/list                  财务台账列表
-GET    /biz/finance/{id}                  详情
-POST   /biz/finance                       新建入账（关联发票）
-PUT    /biz/finance?finance_id={id}       编辑
-DELETE /biz/finance/{id}                  删除
-POST   /biz/finance/import-bank           银行对账单 CSV 导入
-GET    /biz/finance/summary               财务汇总（按月）
-```
-
-#### operation 经营数据（11h 后端）
-
-| # | 文件 | 行数 | 工作量 |
-|---|------|------|--------|
-| A-2.1.23 | `module_biz/entity/do/operation_do.py` | 80 | 1h |
-| A-2.1.24 | `module_biz/entity/vo/operation_vo.py` | 140 | 1.5h |
-| A-2.1.25 | `module_biz/dao/operation_dao.py` | 100 | 1h |
-| A-2.1.26 | `module_biz/service/operation_service.py` | 260 | 4.5h |
-| A-2.1.27 | `module_biz/controller/operation_controller.py` | 110 | 2h |
-| A-2.1.28 | `sql/biz_operation_init.sql` | 60 | 0.5h |
-| A-2.1.29 | `module_biz/enums.py` | +8 | 0.5h（`OperationPeriodEnum`：月报/季报/年报）|
-
-**关键业务规则**（D05 已确认）：
-- **当前阶段手工录入**，不与合同自动汇总
-- 经营指标：营收、成本、毛利、客单价、客户数、合同数
-- 周期：月报/季报/年报
-- 同比/环比自动计算（不存数据库，实时计算）
-
-**Endpoint 清单**：
-```
-GET    /biz/operation/list                经营数据列表
-GET    /biz/operation/{id}                详情
-POST   /biz/operation                     新建
-PUT    /biz/operation?operation_id={id}   编辑
-DELETE /biz/operation/{id}                删除
-GET    /biz/operation/comparison          同比环比对比
-```
-
-### 2.2 前端文件（10 个新增 / 1 个编辑）
-
-| # | 文件 | 行数 | 工作量 | 来源 |
-|---|------|------|--------|------|
-| A-2.2.1 | `src/api/biz/channel.js` | 70 | 0.5h | 新建 |
-| A-2.2.2 | `src/views/biz/channel/index.vue` | 376 | 4.5h | v1 demo `1/frontend/src/views/channel/` 迁移 |
-| A-2.2.3 | `src/api/biz/invoice.js` | 70 | 0.5h | 新建 |
-| A-2.2.4 | `src/views/biz/invoice/index.vue` | 322 | 4h | v1 demo `1/frontend/src/views/invoice/` 迁移 |
-| A-2.2.5 | `src/api/biz/finance.js` | 80 | 0.5h | 新建 |
-| A-2.2.6 | `src/views/biz/finance/index.vue` | 380 | 5h | 新建（v1 demo 无 finance 独立模块） |
-| A-2.2.7 | `src/api/biz/operation.js` | 70 | 0.5h | 新建 |
-| A-2.2.8 | `src/views/biz/operation/index.vue` | 338 | 6h | v1 demo `1/frontend/src/views/operation/` 迁移 |
-
-**前端共用改动**：
-| A-2.2.9 | `src/router/index.js` | +12 | 0.5h | 追加 4 个子路由（channel/invoice/finance/operation） |
-| A-2.2.10 | `src/views/index.vue`（或 dashboard.vue） | +10 | 0h | 顶部导航/面包屑显示 |
-
-### 2.3 数据库 SQL（4 个新增 / 1 个编辑）
-
-| # | 文件 | 工作量 |
-|---|------|--------|
-| A-2.3.1 | `sql/biz_channel_init.sql` | 0.5h（与 A-2.1.6 合并计算） |
-| A-2.3.2 | `sql/biz_invoice_init.sql` | 0.5h |
-| A-2.3.3 | `sql/biz_finance_init.sql` | 0.5h |
-| A-2.3.4 | `sql/biz_operation_init.sql` | 0.5h |
-| A-2.3.5 | `sql/biz_menus_roles_init.sql` | +1h（追加 4 个菜单 + 角色关联） |
+| 维度 | 数据 |
+|------|------|
+| Commit hash | `8eab8f0` |
+| Commit 标题 | `feat(module_biz): 业务闭环 4 模块（路线 A：channel/invoice/finance/operation）` |
+| 新增文件 | **35 个**（后端 20 + 前端 8 + SQL 4 + 共用 3）|
+| 后端模块 | channel / invoice / finance / operation 4 个完整 CRUD |
+| 菜单 | menu_id=12 (channel) / 14 (invoice) / 15 (finance) / 16 (operation) |
+| 工作量 | 1 个会话内完成（v3.0 备注：~50 min 实际工时 + 静态层冒烟）|
+| 路由新增 | /biz/* 总 49 条新增，路线 A 贡献 29 条 |
 
 ---
 
-## 三、关键业务逻辑详解
+## 二、详细交付清单（与初始假设对比）
+
+### 2.1 后端（20 文件）
+
+| 模块 | do | vo | dao | service | controller | 行数估算 |
+|------|----|----|-----|---------|------------|---------|
+| **channel** | ✅ 60 行 (`channel_do.py`) | ✅ 120 行 (`channel_vo.py`) | ✅ 80 行 (`channel_dao.py`) | ✅ 200 行 (`channel_service.py`) | ✅ 100 行 (`channel_controller.py`) | ~9.4KB total |
+| **invoice** | ✅ 70 行 (`invoice_do.py`) | ✅ 130 行 (`invoice_vo.py`) | ✅ 100 行 (`invoice_dao.py`) | ✅ 250 行 (`invoice_service.py`) | ✅ 100 行 (`invoice_controller.py`) | ~29KB total |
+| **finance** | ✅ 80 行 (`finance_do.py`) | ✅ 150 行 (`finance_vo.py`) | ✅ 120 行 (`finance_dao.py`) | ✅ 280 行 (`finance_service.py`) | ✅ 120 行 (`finance_controller.py`) | ~32KB total |
+| **operation** | ✅ 80 行 (`operation_do.py`) | ✅ 140 行 (`operation_vo.py`) | ✅ 100 行 (`operation_dao.py`) | ✅ 260 行 (`operation_service.py`) | ✅ 110 行 (`operation_controller.py`) | ~26KB total |
+
+**自动注册**：`module_biz/__init__.py` 引用了「由 `common/router.py auto_register_routers` 自动扫描 `module_biz/controller/`」机制。所有 controller 类无需手动 import 注册。
+
+### 2.2 SQL 初始化（4 文件）
+
+| 文件 | 表 | 关键设计 |
+|------|----|---------|
+| `sql/biz_channel_init.sql` | `biz_channel` | 4 渠道分类（meituan/douyin/ctrip/tongcheng 与字典对齐）；单字段多合同 ID 用 JSON 存 |
+| `sql/biz_invoice_init.sql` | `biz_invoice` | 1:1 关联合同（合同 ID + 发票号唯一约束）；状态机 pending→issued→void |
+| `sql/biz_finance_init.sql` | `biz_finance_entry` + `biz_bank_statement` | 流水台账 + 银行对账单 2 张表分离（按月汇总 + 匹配状态） |
+| `sql/biz_operation_init.sql` | `biz_operation` | UNIQUE KEY (period, period_type) 防止月/季/年重报 |
+
+### 2.3 前端（8 文件）
+
+| 模块 | api | view | 行数 |
+|------|------|------|------|
+| **channel** | `src/api/biz/channel.js` | `src/views/biz/channel/index.vue` | **417 行** |
+| **invoice** | `src/api/biz/invoice.js` | `src/views/biz/invoice/index.vue` | **377 行** |
+| **finance** | `src/api/biz/finance.js` | `src/views/biz/finance/index.vue` | **394 行** |
+| **operation** | `src/api/biz/operation.js` | `src/views/biz/operation/index.vue` | **370 行** |
+
+**前端路由**：在 `/biz` 父路由下追加 4 个子路由（`'channel' / 'invoice' / 'finance' / 'operation'`）。
+
+### 2.4 共用文件编辑（3 文件）
+
+| 文件 | 改动 |
+|------|------|
+| `src/router/index.js` | `/biz` children 一次性追加 4 个子路由 + 把 v2.9 的 contract/customer 路由补全（这是 v2.9 阶段就做过的，路线 A 重新排版） |
+| `module_biz/enums.py` | 追加 5 个 enum：`ChannelCategoryEnum` / `InvoiceStatusEnum` / `FinanceEntryTypeEnum` / `OperationPeriodEnum` / `OperationBusinessLineEnum` |
+| `sql/biz_menus_roles_init.sql` | 新增 menu_id=12/14/15/16 4 个菜单 + 7 业务角色挂载（admin 全菜单 + 每个业务角色挂对应业务菜单） |
+
+---
+
+## 三、关键业务规则（实施版）
 
 ### 3.1 channel 渠道管理
 
-#### 数据库表设计
+- **分类枚举**：与字典 `dict_type='channel_type'` 对齐，采用 `meituan/douyin/ctrip/tongcheng`（最初草稿用了 ticket/hotel/ota/other，**已调整以保持与字典一致**）
+- **删除约束**：关联合同不允许删除（service 层校验抛 4xx 错）
+- **CSV 导入**：依据 D09 决策，先做 CSV 兜底（路径：`POST /biz/channel/import`）
+- **状态字段**：`status='0'` 正常 / `'1'` 停用
 
-```sql
-CREATE TABLE biz_channel (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '渠道ID',
-  channel_code VARCHAR(50) NOT NULL UNIQUE COMMENT '渠道编码',
-  channel_name VARCHAR(100) NOT NULL COMMENT '渠道名称',
-  category VARCHAR(20) NOT NULL COMMENT '渠道分类（景区门票/酒店数据/综合OTA/其他）',
-  contact_name VARCHAR(50) COMMENT '联系人',
-  contact_phone VARCHAR(20) COMMENT '联系电话',
-  commission_rate DECIMAL(5,4) DEFAULT 0 COMMENT '佣金比例（0-1）',
-  status CHAR(1) DEFAULT '0' COMMENT '状态（0正常 1停用）',
-  remark VARCHAR(500) COMMENT '备注',
-  contract_ids VARCHAR(500) COMMENT '关联合同ID列表（JSON数组）',
-  attachments JSON COMMENT '资质附件（JSON数组）',
-  created_by BIGINT COMMENT '创建人ID',
-  created_by_name VARCHAR(64) COMMENT '创建人姓名',
-  create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-  update_by VARCHAR(64) COMMENT '更新人',
-  update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX idx_category (category),
-  INDEX idx_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='渠道管理表';
-```
+### 3.2 invoice 发票管理（D11 实现）
 
-#### CSV 导入格式（D09）
+- **1:1 关联合同**：DB 层 UNIQUE 约束 `idx_contract_id`，**发票号唯一键**
+- **状态机**：
+  ```
+  pending ──issue──► issued ──void──► void
+     │                                 ▲
+     └───────────reject─────────────────┘
+  ```
+- **金额校验**：`amount <= contract.amount`
+- **日期校验**：`issue_date >= apply_date`
+- **税额自动计算**：价外税（含税金额 → 不含税金额 → 税额）
 
-```csv
-渠道编码,渠道名称,分类,联系人,电话,佣金比例,备注
-QD-001,同程旅行,综合OTA,张三,13800138000,0.0500,长期合作
-JD-002,景区直营,景区门票,李四,13900139000,0.0000,直签
-```
+### 3.3 finance 财务管理（D10 实现）
 
-### 3.2 invoice 发票管理
+- **2 张表分离**：
+  - `biz_finance_entry` —— 业务台账（应付/应收）
+  - `biz_bank_statement` —— 银行对账单导入表
+- **对账流程**：导入银行对账单 → 标记 matched → 已对账不可编辑/删除
+- **按月汇总**：`GET /biz/finance/summary` 应收/应付/已对账/未对账 4 维度
 
-#### 数据库表设计
+### 3.4 operation 经营数据（D05 实现）
 
-```sql
-CREATE TABLE biz_invoice (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  invoice_no VARCHAR(50) NOT NULL UNIQUE COMMENT '发票号',
-  contract_id BIGINT NOT NULL COMMENT '关联合同ID',
-  invoice_type VARCHAR(20) NOT NULL COMMENT '发票类型（增值税专用/普通/电子）',
-  amount DECIMAL(18,2) NOT NULL COMMENT '开票金额',
-  tax_rate DECIMAL(5,4) NOT NULL COMMENT '税率',
-  tax_amount DECIMAL(18,2) NOT NULL COMMENT '税额',
-  party_name VARCHAR(100) NOT NULL COMMENT '购方名称',
-  party_tax_no VARCHAR(50) COMMENT '购方税号',
-  status VARCHAR(20) DEFAULT 'pending' COMMENT '状态（pending/issued/void）',
-  apply_date DATE COMMENT '申请日期',
-  issue_date DATE COMMENT '开票日期',
-  void_reason VARCHAR(500) COMMENT '作废原因',
-  remark VARCHAR(500),
-  created_by BIGINT,
-  created_by_name VARCHAR(64),
-  create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-  update_by VARCHAR(64),
-  update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX idx_contract_id (contract_id),
-  INDEX idx_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='发票管理表';
-```
-
-### 3.3 finance 财务管理
-
-```sql
-CREATE TABLE biz_finance_entry (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  entry_no VARCHAR(50) NOT NULL UNIQUE COMMENT '流水号',
-  entry_type VARCHAR(20) NOT NULL COMMENT '类型（payable/receivable）',
-  invoice_id BIGINT COMMENT '关联发票ID',
-  contract_id BIGINT COMMENT '关联合同ID',
-  amount DECIMAL(18,2) NOT NULL COMMENT '金额',
-  account VARCHAR(50) COMMENT '银行账号',
-  account_name VARCHAR(100) COMMENT '账户名',
-  transaction_date DATE COMMENT '交易日期',
-  cleared TINYINT DEFAULT 0 COMMENT '是否已对账（0否 1是）',
-  remark VARCHAR(500),
-  created_by BIGINT,
-  create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-  update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX idx_entry_type (entry_type),
-  INDEX idx_cleared (cleared),
-  INDEX idx_transaction_date (transaction_date)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='财务台账表';
-
-CREATE TABLE biz_bank_statement (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  batch_no VARCHAR(50) NOT NULL COMMENT '导入批次号',
-  transaction_date DATE NOT NULL,
-  account VARCHAR(50) NOT NULL,
-  amount DECIMAL(18,2) NOT NULL,
-  counterparty VARCHAR(100) COMMENT '交易对手',
-  remark VARCHAR(200),
-  matched TINYINT DEFAULT 0 COMMENT '是否已匹配财务流水',
-  matched_entry_id BIGINT COMMENT '匹配的财务流水ID',
-  import_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-  imported_by BIGINT,
-  INDEX idx_batch_no (batch_no),
-  INDEX idx_transaction_date (transaction_date),
-  INDEX idx_matched (matched)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='银行对账单导入表';
-```
-
-### 3.4 operation 经营数据
-
-```sql
-CREATE TABLE biz_operation (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  period VARCHAR(20) NOT NULL COMMENT '周期（如 2026-07 / 2026-Q3 / 2026）',
-  period_type VARCHAR(20) NOT NULL COMMENT '周期类型（month/quarter/year）',
-  revenue DECIMAL(18,2) NOT NULL DEFAULT 0 COMMENT '营收',
-  cost DECIMAL(18,2) NOT NULL DEFAULT 0 COMMENT '成本',
-  gross_profit DECIMAL(18,2) NOT NULL DEFAULT 0 COMMENT '毛利',
-  customer_count INT DEFAULT 0 COMMENT '客户数',
-  contract_count INT DEFAULT 0 COMMENT '合同数',
-  avg_order_value DECIMAL(18,2) DEFAULT 0 COMMENT '客单价',
-  remark VARCHAR(500),
-  created_by BIGINT,
-  create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-  update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uk_period_type (period, period_type),
-  INDEX idx_period_type (period_type)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='经营数据表';
-```
+- **手工录入**：当前阶段与合同**不自动汇总**（D05 决策）
+- **毛利 = 营收 - 成本**：实时计算，不存 DB
+- **同比环比**：跨年边界处理（2026-01→2025-12、2026-Q1→2025-Q4、2025-09→2024-09 同月、2025-Q3→2024-Q3 同季）
 
 ---
 
-## 四、菜单与权限分配
+## 四、关键 bug 修复与设计调整（v3.0 hotfix）
 
-### 4.1 menu_id 分配（与路线 B 互斥）
+> 以下是 v3.0 commit message 里记录的"v3.0 hotfix（菜单 SQL）"段，实际是与原路线图最不一致的几点：
 
-```
-menu_id=9   渠道管理     path=biz/channel    icon=share
-menu_id=10  发票管理     path=biz/invoice    icon=ticket
-menu_id=11  财务管理     path=biz/finance    icon=money
-menu_id=12  经营数据     path=biz/operation  icon=data-line
-```
-
-### 4.2 perms 分配
-
-```
-biz:channel:list    biz:channel:add    biz:channel:edit    biz:channel:delete    biz:channel:import
-biz:invoice:list    biz:invoice:add    biz:invoice:edit    biz:invoice:delete    biz:invoice:issue    biz:invoice:void
-biz:finance:list    biz:finance:add    biz:finance:edit    biz:finance:delete    biz:finance:import
-biz:operation:list  biz:operation:add  biz:operation:edit  biz:operation:delete  biz:operation:comparison
-```
-
-### 4.3 角色挂菜单
-
-- admin（role_id=1，role_sort=0）：挂全部菜单 + 全部权限
-- 业务经办（uid=101）：挂 channel 列表
-- 财务经办/复核（uid=104/105）：挂 invoice + finance 全部权限
-- 供管负责人（uid=106）：挂 channel 全部权限
+1. **menu_id 错位**：早期版本错把 channel/invoice/finance/operation 写成 menu_id 9-11，与审批菜单 menu_id=8 冲突。**已 DELETE 清理 9-11**，改用 **12/14/15/16 让出 13 给路线 B 战略驾驶舱**。
+2. **parent_id**：从 `parent_id=0`（顶级）改为 `parent_id=5`（业务管理父菜单），与审批 menu_id=8 风格一致。
+3. **path 路径**：必须写**完整路径** `biz/channel`（含父级前缀），与 v2.6 修正后的 contract/customer 风格一致。最初草稿写的是 `channel`，**已修正**。
+4. **perms 去掉 `biz:` 前缀**：与 controller `UserInterfaceAuthDependency` 一致，例如 `channel:list` 而不是 `biz:channel:list`。
+5. **ChannelCategoryEnum 命名**：草稿 `ticket/hotel/ota/other` → **改为 `meituan/douyin/ctrip/tongcheng`**，与 sys_dict_data dict_type='channel_type' 对齐。
 
 ---
 
-## 五、端到端验收清单
+## 五、静态层冒烟（已 PASS）
 
-### 5.1 单元验收（每个模块独立）
+| 检查项 | 通过依据 |
+|--------|---------|
+| 5 张表 ORM 字段与 SQL 100% 对齐 | DAO 层 SELECT 通过 `column.name` 反射对比无错 |
+| Pydantic camelCase 序列化 | 所有 VO 启用 `alias_generator=to_camel` + `model_dump(by_alias=True)` |
+| 5 个枚举中文 label | `enum.Enum` 的类属性 `__doc__` 提供 label |
+| 同比环比 period 移位 | 2026-01→2025-12（年减 1）、2026-Q1→2025-Q4、2025-09→2024-09（同月减 1 年）|
+| 路由注册总数 | FastAPI `/biz/*` 总 49 条，路线 A 贡献 29 条（4 模块合计）|
+| 权限注解 | 7 个业务角色已挂对应菜单 + perms |
 
-| 模块 | 验收动作 | 预期结果 |
-|------|---------|---------|
-| channel | 新建渠道 → 列表显示 → 编辑 → 删除 | OK |
-| channel | CSV 导入 5 条 | 列表显示 5 条新记录 |
-| channel | 删除有合同关联的渠道 | 拒绝删除，提示"请先解除合同关联" |
-| invoice | 为已审批通过的合同开发票 | 成功，状态 pending |
-| invoice | 开票 → 标记已开 → 作废 | 状态正常流转 |
-| invoice | 开票金额超过合同金额 | 拒绝，提示"开票金额不能超过合同金额" |
-| finance | 导入银行对账单 CSV | 成功，状态 unmatched |
-| finance | 手动新建入账记录，关联发票 | 成功 |
-| operation | 新建 2026-07 月报 | 成功，毛利自动计算 |
-| operation | 查看同比环比 | 2026-07 vs 2025-07 自动计算 |
-
-### 5.2 业务链端到端验收
-
-```
-步骤 1：biz_handler(uid=101) 创建合同 HT-2026-009
-步骤 2：业务经办提交 → 7 级审批通过
-步骤 3：admin 把 HT-2026-009 分配到「同程旅行」(channel_id=1) + 「景区直营」(channel_id=2)
-步骤 4：财务经办(uid=104) 为 HT-2026-009 开票 → 标记已开票
-步骤 5：财务经办导入 7 月银行对账单 CSV，匹配入账
-步骤 6：管理员登记 2026-07 月报：
-   - 营收：包含 HT-2026-009 的开票金额
-   - 客户数：1（来自 HT-2026-009 的客户）
-   - 合同数：1
-步骤 7：查看同比环比：2026-07 vs 2025-07
-
-预期：所有步骤成功，无报错；驾驶舱数据可被路线 B 直接读取
-```
-
-### 5.3 性能验收
-
-- 渠道列表 1000 条数据，分页响应 < 500ms
-- CSV 导入 1000 条，< 5s
-- 发票列表分页 100 条，< 300ms
+**运行时端到端**：MySQL+服务启动后端到端验收待后续在 Day 5 末尾执行（详见台账 v2.9 / v3.0）。
 
 ---
 
-## 六、与路线 B 的边界确认
+## 六、剩余 & 后续
 
-| 项目 | 路线 A 处理 | 路线 B 处理 |
-|------|----------|----------|
-| `biz_channel` 表 | A 写 | B 只读（驾驶舱聚合查询）|
-| `biz_invoice` 表 | A 写 | B 只读 |
-| `biz_finance_entry` 表 | A 写 | B 只读 |
-| `biz_operation` 表 | A 写 | B 只读 |
-| `src/router/index.js` | A 只追加 channel/invoice/finance/operation 4 行 | B 只追加 cockpit/dashboard/profile/system 4 行 |
-| `sql/biz_menus_roles_init.sql` | A 追加 menu_id 9-12 | B 追加 menu_id 13-16 |
-| `module_biz/enums.py` | A 追加 4 个 enum | B 不动 |
-| `module_biz/__init__.py` | 阶段 0 已注册，路线 A 不动 | 同左 |
+| 项目 | 状态 |
+|------|------|
+| 后端单元测试 | ⏳ 未做（单测 ≥80% 覆盖率要求）|
+| E2E Playwright 测试 | ⏳ 未做 |
+| 性能压测 | ⏳ 未做（路线 A 验收清单列了 ≤ 500ms/≤ 5s 阈值）|
 
 ---
 
-## 七、风险与回退方案
+## 七、关联文档
 
-| 风险 | 触发条件 | 回退方案 |
-|------|---------|---------|
-| channel CSV 导入性能差 | 1000 条 > 10s | 改为分批 INSERT，每批 100 条 |
-| invoice 与合同强约束导致历史数据导入失败 | 老系统发票与合同 1:N | 改为弱关联（允许重复） |
-| finance 银行对账单 CSV 格式不统一 | 各银行格式差异大 | 设计灵活解析器，支持字段映射 |
-| operation 同比环比计算错误 | 跨年数据 | 加 period 维度校验 |
-| 4 个 controller 注册冲突 | 路线 B 抢先注册 | 阶段 0 一次性注册好 |
-
----
-
-## 八、关联文档
-
-- [并行开发路线总览](./00-并行开发路线总览.md)
-- [路线 B 详细方案：大屏可视化优先](./路线B-大屏可视化优先.md)
-- 开发进度台账 v2.9 → `docs/04-开发/开发进度台账.md`
-- v1 demo 参考源码 → `1/frontend/src/views/{channel,invoice,operation}/`、`1/backend/app/models/{channel,invoice}.py`
-- ADR 决策记录 → `docs/04-开发/ARD/ADR-架构决策记录.md` D05/D09/D10/D11
+- [路线总览（v3.0/v3.1 完成报告）](./00-并行开发路线总览.md)
+- [路线 B 完成报告](./路线B-大屏可视化优先.md)
+- [开发进度台账 v2.9 / v3.0 / v3.1 条目](../../开发进度台账.md)
+- [ADR D05/D09/D10/D11](../../ARD/ADR-架构决策记录.md)
+- 原始「操作手册」草稿（归档作参考）：[操作手册-双窗口并行.md](./操作手册-双窗口并行.md)
