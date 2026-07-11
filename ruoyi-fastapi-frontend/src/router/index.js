@@ -157,6 +157,20 @@ export const dynamicRoutes = [
         meta: { title: '修改生成配置', activeMenu: '/tool/gen' }
       }
     ]
+  },
+  {
+    path: '/biz',
+    component: Layout,
+    redirect: '/biz/approval',
+    permissions: ['biz:view'],
+    children: [
+      {
+        path: 'approval',
+        component: () => import('@/views/biz/approval/index.vue'),
+        name: 'BizApproval',
+        meta: { title: '审批中心', icon: 'check', noCache: false }
+      }
+    ]
   }
 ]
 
