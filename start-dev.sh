@@ -173,7 +173,7 @@ run_local_mode() {
         $([ "$name" = "ruoyi-mysql" ] && echo "-e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=ruoyi-fastapi -p 13306:3306 \
           -v $PROJECT_ROOT/ruoyi-fastapi-backend/sql/ruoyi-fastapi.sql:/docker-entrypoint-initdb.d/ruoyi-fastapi.sql \
           -v $PROJECT_ROOT/mysql-conf/charset.cnf:/etc/mysql/conf.d/charset.cnf:ro" || echo "-p 16379:6379") \
-        $([ "$name" = "ruoyi-mysql" ] && echo "mysql:8.0" || echo "redis:latest")
+        $([ "$name" = "ruoyi-mysql" ] && echo "mysql:8.0 --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci --skip-character-set-client-handshake=1" || echo "redis:latest")
     fi
   done
 
@@ -196,12 +196,15 @@ run_local_mode() {
 
   # ---- MySQL 字符集自检（防双重 UTF-8 编码问题） ----
   if is_container_running "ruoyi-mysql"; then
-    local charset
-    charset=$(LANG=C docker exec ruoyi-mysql mysql -uroot -proot -N -B \
-      -e "SHOW VARIABLES WHERE Variable_name='character_set_client'" 2>/dev/null | \
-      grep character_set_client | cut -f2 -d'	')
+    local charset_raw charset
+    charset_raw=$(LANG=C docker exec ruoyi-mysql mysql --default-character-set=utf8mb4 \
+      -uroot -proot -N -B \
+      -e "SHOW VARIABLES WHERE Variable_name='character_set_client'" 2>&1)
+    charset=$(echo "$charset_raw" | tail -n 1 | tr -d '[:space:]')
     if [ "$charset" != "utf8mb4" ]; then
-      log_error "MySQL character_set_client=$charset（期望 utf8mb4）"
+      log_error "MySQL character_set_client=[${charset}]（期望 utf8mb4）"
+      log_error "完整返回值（用于诊断）："
+      echo "$charset_raw" | sed 's/^/    /'
       log_error "可能原因：mysql-conf/charset.cnf 未挂载或被忽略"
       exit 1
     fi
