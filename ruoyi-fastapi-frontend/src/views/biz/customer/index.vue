@@ -189,7 +189,7 @@ onMounted(load)
 .card-header { display: flex; justify-content: space-between; align-items: center; }
 .toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; gap: 12px; }
 .search-input { max-width: 320px; }
-.muted { color: #c0c4cc; }
+.muted { color: var(--el-text-color-placeholder); }
 .files { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .file-tag { display: inline-flex; align-items: center; gap: 4px; }
 .file-line { display: flex; align-items: center; gap: 6px; padding: 3px 0; }

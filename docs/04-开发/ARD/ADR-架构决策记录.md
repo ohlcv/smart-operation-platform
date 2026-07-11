@@ -27,6 +27,7 @@
 | D15 | 数据库选型 | MySQL 8.0 | ✅ 已确认 |
 | D23 | 前端登录页文件组织 | 科技风登录页用 `login/index.vue` 目录结构，替换 RuoYi 原生 `login.vue` 单文件 | ✅ 已确认 |
 | D24 | API 字段命名一致性 | JSON 请求/响应字段一律 camelCase，全站强约束；Python 用 snake_case 由 Pydantic `alias_generator=to_camel` 自动序列化 | ✅ 已确认 |
+| D25 | 前端样式主题适配规范 | 所有 `.vue` 页面/组件的样式中，色值（背景/文字/边框）必须通过 Element Plus CSS 变量（`var(--el-*)`）引用；禁止硬编码 EP 调色板色值；`html.dark` 切换时自动跟随；业务语义色（警告/金额/驳回等）允许硬编码但需显式注明 | ✅ 已确认 |
 
 ---
 
@@ -420,6 +421,63 @@ draft ──提交──► pending ──审批通过──► approved
 - 数据库：未改动（snake_case 保持）
 
 **关联决策**：D06（甲乙方字段名 `party_a`/`party_b` 仍按 Python 层 snake_case，JSON 层自动 `partyA`/`partyB`）。
+
+---
+
+### D25：前端样式主题适配规范
+
+**问题**：业务页（`biz/*`）的 `<style scoped>` 中大量硬编码 Element Plus 调色板色值（如 `#fafbfc / #f5f7fa / #909399 / #ecf5ff / #409eff` 等），在浅色模式下视觉正常，但切换到暗色模式（`html.dark`）后，这些区块底色不跟随主题，呈现「白色块漂浮在暗色页面」的视觉割裂（详见 `DEBUG/approval-dark-mode-hardcoded-colors-2026-07-11.md`）。
+
+**决策**：
+
+- 所有 `.vue` 页面/组件的样式中，**色值（背景/文字/边框）必须通过 Element Plus CSS 变量引用**
+- 允许使用的变量形式：`var(--el-fill-color-blank)` / `var(--el-text-color-primary)` / `var(--el-border-color-lighter)` / `var(--el-color-primary-light-9)` 等 EP 全局变量
+- **禁止硬编码 EP 调色板色值**（`#[0-9a-fA-F]{3,6}`），包括但不限于：`#fafbfc / #f5f7fa / #ecf5ff / #409eff / #e6a23c / #a8abb2 / #c0c4cc / #909399 / #606266 / #e4e7ed`
+- `html.dark` 切换时，Element Plus `dark/css-vars.css` 自动切换所有 `--el-*` 变量，无需额外 JS 逻辑
+- **业务语义色允许硬编码**：警告/金额高亮/驳回原因等有明确业务含义的红色（`#f56c6c`）等硬编码值允许保留，但须在同文件注释说明原因
+
+**允许硬编码的例外色清单**（当前已知，后续补充）：
+
+| 色值 | 语义 | 使用场景 | 所在文件 |
+|------|------|----------|----------|
+| `#f56c6c` | 警告/错误/金额高亮/驳回原因 | `.tab-badge`、`.amount-text`、`.history-item-reject` | `approval/index.vue` |
+
+**Rationale**：
+
+- 项目暗色主题机制已完善（`@vueuse/core useDark()` → `html.classList.add('dark')` → EP `dark/css-vars.css` 切换变量），业务页只需正确引用变量即可自动适配
+- `dashboard/index.vue` 等已正确示范，biz/* 页开发时未遵循同一规范
+- 台账 §五「前端 Page (.vue)」验收标准原只有「v-permission + 三态」，缺失「主题适配」维度，导致开发时无约束
+
+**变量速查对照**（浅色/暗色切换时 EP 自动映射）：
+
+| 用途 | 推荐变量 | 浅色典型值 | 暗色典型值 |
+|------|----------|------------|------------|
+| 页面/卡片底色 | `--el-fill-color-blank` | `#ffffff` | `#1d1e1f` |
+| 次级区块底色 | `--el-fill-color-light` | `#f5f7fa` | `#262727` |
+| 主要文字 | `--el-text-color-primary` | `#303133` | `#e8e8e8` |
+| 次要文字 | `--el-text-color-secondary` | `#909399` | `#a3a6ad` |
+| 常规文字 | `--el-text-color-regular` | `#606266` | `#c0c4cc` |
+| 占位/禁用文字 | `--el-text-color-placeholder` | `#a8abb2` | `#8d9095` |
+| 边框 | `--el-border-color` | `#e4e7ed` | `#4a4a4a` |
+| 浅边框 | `--el-border-color-lighter` | `#ebeef5` | `#363637` |
+| 主色浅底（标签等） | `--el-color-primary-light-9` | `#ecf5ff` | `#1e1e2e` |
+| 主色文字 | `--el-color-primary` | `#409eff` | 跟随主题色 |
+| 警告色 | `--el-color-warning` | `#e6a23c` | `#cf9236` |
+
+**验收检查项**（每次业务页提交前执行）：
+
+```bash
+# 1. 扫描 .vue 文件中是否还有写死 EP 调色板色值
+rg -n '#[0-9a-fA-F]{3,6}' src/views/biz/**/*.vue \
+  | grep -vE 'f56c6c'  # f56c6c 是业务语义色保留
+
+# 2. 手动：切到暗色模式，逐区块目视检查是否跟随主题
+#    关注：搜索区容器 / 表单背景 / 操作摘要块 / 步骤标签 / 签名图边框
+```
+
+**关联决策**：D23（前端登录页文件组织）、D24（API 字段命名一致性）。
+
+**关联 DEBUG**：`DEBUG/approval-dark-mode-hardcoded-colors-2026-07-11.md`（2026-07-11 审批中心暗色适配修复记录，含 3 个文件 12 处替换明细）。
 
 ---
 

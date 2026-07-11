@@ -264,12 +264,12 @@ onMounted(load)
 }
 .search-input { max-width: 340px; }
 .toolbar-right { display: flex; gap: 8px; }
-.cur-role { margin-top: 4px; font-size: 12px; color: #e6a23c; }
+.cur-role { margin-top: 4px; font-size: 12px; color: var(--el-color-warning); }
 .upload-mock {
   width: 100%;
   :deep(.el-upload),
   :deep(.el-upload-dragger) { width: 100%; }
   :deep(.el-upload-dragger) { padding: 16px; }
 }
-.upload-tip { color: #a8abb2; font-size: 12px; margin-top: 4px; }
+.upload-tip { color: var(--el-text-color-placeholder); font-size: 12px; margin-top: 4px; }
 </style>
