@@ -48,6 +48,7 @@ class UserModel(BaseModel):
     update_time: datetime | None = Field(default=None, description='更新时间')
     remark: str | None = Field(default=None, description='备注')
     admin: bool | None = Field(default=False, description='是否为admin')
+    signature: str | None = Field(default=None, description='电子签名 base64 data URI')
 
     @model_validator(mode='after')
     def check_password(self) -> 'UserModel':
@@ -172,6 +173,14 @@ class AvatarModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel)
 
     img_url: str = Field(description='头像地址')
+
+
+class SignatureUpdateModel(BaseModel):
+    """电子签名更新请求体（data URI base64）"""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    signature: str | None = Field(default=None, description='电子签名 data URI，传 null/空串可清除')
 
 
 class UserQueryModel(UserModel):

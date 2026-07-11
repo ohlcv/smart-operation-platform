@@ -15,7 +15,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import and_, asc, desc, func, or_, select
+from sqlalchemy import and_, asc, desc, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from exceptions.exception import ServiceException
@@ -55,8 +55,6 @@ def _is_admin(current_user: CurrentUserModel) -> bool:
 
 async def _user_role_sorts(db: AsyncSession, user_id: int) -> list[int]:
     """返回当前用户所有角色的 role_sort 列表（含 0=admin）。"""
-    from sqlalchemy import text
-
     stmt = text(
         """
         SELECT r.role_sort FROM sys_role r
@@ -66,6 +64,19 @@ async def _user_role_sorts(db: AsyncSession, user_id: int) -> list[int]:
     )
     result = await db.execute(stmt, {'uid': user_id})
     return [int(row[0]) for row in result.fetchall() if row[0] is not None]
+
+
+async def _user_signature(db: AsyncSession, user_id: int) -> str | None:
+    """读取当前用户的电子签名（base64 data URI），用于审批自动签章快照。
+
+    读取时直接从 sys_user.signature 取，避免依赖 Pydantic CurrentUserModel 是否加载此字段。
+    """
+    stmt = text("SELECT signature FROM sys_user WHERE user_id = :uid")
+    result = await db.execute(stmt, {'uid': user_id})
+    row = result.fetchone()
+    if row and row[0]:
+        return row[0]
+    return None
 
 
 async def can_approve(
@@ -395,6 +406,8 @@ class ApprovalService:
 
         uid = _user_id(current_user)
         u_name = _user_name(current_user)
+        # 自动电子签章：从 sys_user.signature 取 base64 data URI 快照（v1 demo 行为）
+        sig_snapshot = await _user_signature(db, uid)
 
         # 写审批记录
         approval = BizApproval(
@@ -405,6 +418,7 @@ class ApprovalService:
             approver_role=c.current_role or ApprovalStepEnum.role_key(c.current_step) or '',
             action=ApprovalActionEnum.APPROVE.value,
             comment=payload.comment,
+            signature_snapshot=sig_snapshot,
             approval_time=datetime.now(),
             create_time=datetime.now(),
         )

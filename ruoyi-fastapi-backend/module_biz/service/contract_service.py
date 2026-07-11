@@ -11,6 +11,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from exceptions.exception import ServiceException
@@ -31,6 +32,7 @@ from module_biz.enums import (
     ContractStatusEnum,
     ContractTypeEnum,
 )
+from module_biz.service.approval_service import _user_signature
 
 
 def _user_id(current_user: CurrentUserModel) -> int:
@@ -287,8 +289,10 @@ class ContractService:
                 'update_by': _user_name(current_user),
             },
         )
-        # 写 Step 0 自动审批记录
+        # 写 Step 0 自动审批记录（同时附带电子签名快照）
         u_name = _user_name(current_user)
+        # 自动电子签章：从 sys_user.signature 取 base64 data URI 快照（与 v1 demo 一致）
+        sig_snapshot = await _user_signature(db, uid)
         approval = BizApproval(
             contract_id=contract_id,
             approver_id=uid,
@@ -297,6 +301,7 @@ class ContractService:
             approver_role=ApprovalStepEnum.role_key(ApprovalStepEnum.STEP_0_BUSINESS_HANDLER.value) or 'business_handler',
             action=ApprovalActionEnum.APPROVE.value,
             comment='业务经办提交',
+            signature_snapshot=sig_snapshot,
             approval_time=datetime.now(),
             create_time=datetime.now(),
         )

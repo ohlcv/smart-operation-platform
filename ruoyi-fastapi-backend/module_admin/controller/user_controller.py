@@ -28,6 +28,7 @@ from module_admin.entity.vo.user_vo import (
     AddUserModel,
     AvatarModel,
     CrudUserRoleModel,
+    SignatureUpdateModel,
     CurrentUserModel,
     DeleteUserModel,
     EditUserModel,
@@ -382,6 +383,37 @@ async def change_system_user_profile_info(
     logger.info(edit_user_result.message)
 
     return ResponseUtil.success(msg=edit_user_result.message)
+
+
+@user_controller.put(
+    '/profile/signature',
+    summary='更新本人电子签名',
+    description='用于当前登录用户上传/更新电子签名（base64 data URI）。审批时后端自动读取此字段并快照写入 biz_approval.signature_snapshot。',
+    response_model=ResponseBaseModel,
+)
+@Log(title='个人信息', business_type=BusinessType.UPDATE)
+async def change_signature(
+    request: Request,
+    payload: SignatureUpdateModel,
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    """更新电子签名。
+
+    简单 PUT 实现：直接 UPDATE sys_user.signature，不触发其他字段校验。
+    前端调用：`updateSignature(signature)` (base64 data URI 或 null 清除)。
+    """
+    uid = current_user.user.user_id
+    sig = (payload.signature or '').strip() or None
+    from sqlalchemy import update
+    stmt = update(SysUser).where(SysUser.user_id == uid).values(
+        signature=sig,
+        update_by=current_user.user.user_name,
+        update_time=datetime.now(),
+    )
+    result = await query_db.execute(stmt)
+    await query_db.commit()
+    return ResponseUtil.success(msg='电子签名更新成功', data={'hasSignature': bool(sig)})
 
 
 @user_controller.put(

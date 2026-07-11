@@ -45,6 +45,13 @@ class SysUser(Base):
         server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type),
         comment='备注',
     )
+    # v2.9：电子签名（base64 data URI），审批时自动快照写入 biz_approval.signature_snapshot
+    signature = Column(
+        String(500),
+        nullable=True,
+        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type),
+        comment='电子签名 base64 data URI',
+    )
 
 
 class SysUserRole(Base):

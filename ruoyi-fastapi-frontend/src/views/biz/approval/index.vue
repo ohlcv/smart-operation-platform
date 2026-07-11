@@ -129,9 +129,9 @@
             link
             size="small"
             icon="View"
-            @click="openHistory(scope.row)"
+            @click="openDetail(scope.row)"
           >
-            审批历史
+            查看详情
           </el-button>
           <template v-if="activeTab === 'pending' && scope.row.canApprove">
             <el-button
@@ -238,51 +238,11 @@
       </template>
     </el-dialog>
 
-    <!-- 审批历史弹窗 -->
-    <el-dialog
-      v-model="historyDialog.visible"
-      title="审批历史"
-      width="780px"
-      append-to-body
-      destroy-on-close
-    >
-      <div v-if="historyDialog.contract" class="history-header">
-        <div><strong>合同编号：</strong>{{ historyDialog.contract.contractNo }}</div>
-        <div><strong>合同名称：</strong>{{ historyDialog.contract.title }}</div>
-        <div>
-          <strong>当前状态：</strong>
-          <el-tag :type="statusTagType(historyDialog.contract.status)" size="small">
-            {{ historyDialog.contract.statusLabel }}
-          </el-tag>
-        </div>
-      </div>
-      <el-timeline v-loading="historyDialog.loading">
-        <el-timeline-item
-          v-for="item in historyDialog.items"
-          :key="item.id"
-          :timestamp="formatTime(item.approvalTime)"
-          :type="item.action === 'approve' ? 'success' : 'danger'"
-          placement="top"
-        >
-          <div class="history-item">
-            <div class="history-item-head">
-              <span class="step-tag">Step {{ item.step }} · {{ item.stepLabel }}</span>
-              <el-tag :type="item.action === 'approve' ? 'success' : 'danger'" size="small">
-                {{ item.actionLabel }}
-              </el-tag>
-              <span class="approver">{{ item.approverName || '系统' }}</span>
-              <span class="role">({{ item.approverRole }})</span>
-            </div>
-            <div v-if="item.comment" class="history-item-comment">意见：{{ item.comment }}</div>
-            <div v-if="item.rejectReason" class="history-item-reject">驳回原因：{{ item.rejectReason }}</div>
-            <div v-if="item.signatureSnapshot" class="history-item-sig">
-              <img :src="item.signatureSnapshot" alt="签名快照" class="sig-img" />
-            </div>
-          </div>
-        </el-timeline-item>
-        <el-empty v-if="!historyDialog.loading && historyDialog.items.length === 0" description="暂无审批记录" />
-      </el-timeline>
-    </el-dialog>
+    <!-- 合同详情抽屉（含 7 级进度条 + 时间轴 + 打印审批单） -->
+    <ContractDetailDrawer
+      v-model="detailDrawer.visible"
+      :contract-id="detailDrawer.contractId"
+    />
   </div>
 </template>
 
@@ -291,10 +251,10 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   listApprovals,
-  getApprovalHistory,
   approveContract,
   rejectContract
 } from '@/api/biz/approval'
+import ContractDetailDrawer from './ContractDetailDrawer.vue'
 
 const loading = ref(false)
 const dataList = ref([])
@@ -427,29 +387,15 @@ async function submitAction() {
   }
 }
 
-// 审批历史弹窗
-const historyDialog = reactive({
+// 合同详情抽屉（v2.9）：合同信息 + 7 级进度条 + 时间轴 + 打印审批单
+const detailDrawer = reactive({
   visible: false,
-  loading: false,
-  contract: null,
-  items: []
+  contractId: null
 })
 
-async function openHistory(row) {
-  historyDialog.visible = true
-  historyDialog.loading = true
-  historyDialog.contract = row
-  historyDialog.items = []
-  try {
-    const res = await getApprovalHistory(row.id)
-    historyDialog.contract = res.contract || row
-    historyDialog.items = res.items || []
-  } catch (e) {
-    console.error(e)
-    ElMessage.error('加载审批历史失败')
-  } finally {
-    historyDialog.loading = false
-  }
+function openDetail(row) {
+  detailDrawer.contractId = row.id
+  detailDrawer.visible = true
 }
 
 onMounted(() => {
