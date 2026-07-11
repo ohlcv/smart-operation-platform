@@ -72,3 +72,4 @@ OutputOption = Annotated[Literal['text', 'json'], typer.Option('--output', help=
 AllowProdOption = Annotated[bool, typer.Option('--allow-prod', help='允许在生产环境中执行危险命令')]
 YesOption = Annotated[bool, typer.Option('--yes', help='跳过危险命令确认')]
 DryRunOption = Annotated[bool, typer.Option('--dry-run', help='仅执行预演，不落地实际变更')]
+UseMergedOption = Annotated[bool, typer.Option('--use-merged', help='使用 .env.merged 进行检查（本地开发模式）')]

@@ -13,6 +13,8 @@ def build_async_sqlalchemy_database_url() -> str:
 
     :return: 异步 SQLAlchemy 数据库连接 URL
     """
+    from config.env import DataBaseConfig
+
     if DataBaseConfig.db_type == 'postgresql':
         return (
             f'postgresql+asyncpg://{DataBaseConfig.db_username}:{quote_plus(DataBaseConfig.db_password)}@'
@@ -33,6 +35,8 @@ def build_sync_sqlalchemy_database_url() -> str:
 
     :return: 同步 SQLAlchemy 数据库连接 URL
     """
+    from config.env import DataBaseConfig
+
     if DataBaseConfig.db_type == 'postgresql':
         return (
             f'postgresql+psycopg2://{DataBaseConfig.db_username}:{quote_plus(DataBaseConfig.db_password)}@'
@@ -54,8 +58,10 @@ def create_async_db_engine(echo: bool | None = None) -> AsyncEngine:
     :param echo: 可选，是否输出 SQLAlchemy SQL 日志
     :return: 异步 SQLAlchemy Engine
     """
+    from config.env import DataBaseConfig
+
     return create_async_engine(
-        ASYNC_SQLALCHEMY_DATABASE_URL,
+        build_async_sqlalchemy_database_url(),
         echo=DataBaseConfig.db_echo if echo is None else echo,
         max_overflow=DataBaseConfig.db_max_overflow,
         pool_size=DataBaseConfig.db_pool_size,
@@ -71,8 +77,10 @@ def create_sync_db_engine(echo: bool | None = None) -> Engine:
     :param echo: 可选，是否输出 SQLAlchemy SQL 日志
     :return: 同步 SQLAlchemy Engine
     """
+    from config.env import DataBaseConfig
+
     return create_engine(
-        SYNC_SQLALCHEMY_DATABASE_URL,
+        build_sync_sqlalchemy_database_url(),
         echo=DataBaseConfig.db_echo if echo is None else echo,
         max_overflow=DataBaseConfig.db_max_overflow,
         pool_size=DataBaseConfig.db_pool_size,

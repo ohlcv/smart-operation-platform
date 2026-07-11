@@ -69,14 +69,18 @@ class AppCommandController:
         """
         self.bootstrap_service.exec_app_run_command(env)
 
-    def doctor(self, env: str, output: str) -> None:
+    def doctor(self, env: str, output: str, *, use_merged: bool = False) -> None:
         """
         执行应用启动前检查。
 
         :param env: 当前命令运行环境
         :param output: 输出格式
+        :param use_merged: 是否使用 .env.merged 进行检查
         :return: None
         """
+        if use_merged:
+            import config.env as env_module
+            env_module.reload_from_merged()
         ctx = self.context_factory.build_readonly(env, output)
         db_status = self.execution_service.run_async(self.database_runtime.ping_database())
         redis_status = self.execution_service.run_async(self.operations_runtime.ping_redis())

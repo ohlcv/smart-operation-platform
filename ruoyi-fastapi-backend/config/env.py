@@ -5,6 +5,7 @@ import sys
 from typing import Literal
 
 from dotenv import load_dotenv
+from dotenv import load_dotenv
 from pydantic import computed_field
 from pydantic_settings import BaseSettings
 
@@ -312,6 +313,28 @@ class GetConfig:
             env_file = f'.env.{run_env}'
         # 加载配置
         load_dotenv(env_file)
+
+
+def reload_from_merged() -> None:
+    """
+    用 .env.merged 覆盖当前已加载的环境变量，并重建 pydantic 配置对象。
+    仅在 doctor --use-merged 时调用，使检查结果与 uvicorn 启动时的实际配置一致。
+    """
+    if not os.path.exists('.env.merged'):
+        return
+    load_dotenv('.env.merged', override=True)
+    import config.env
+    import config.database
+    import config.get_redis
+    # 重建 pydantic 配置对象，使其从更新后的 os.environ 重新读取字段值
+    # 注意：用 model_copy() 原地更新，保持已持有该实例引用的模块（如 RedisUtil）的兼容性
+    new_db = DataBaseSettings.model_validate({})
+    new_redis = RedisSettings.model_validate({})
+    config.env.DataBaseConfig.__dict__.update(new_db.__dict__)
+    config.env.RedisConfig.__dict__.update(new_redis.__dict__)
+    # 重建已缓存的全局 engine（engine.url 在构造时读取 URL）
+    config.database.async_engine = config.database.create_async_db_engine()
+    config.database.AsyncSessionLocal = config.database.create_async_session_local(config.database.async_engine)
 
 
 # 实例化获取配置类

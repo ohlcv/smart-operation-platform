@@ -213,7 +213,7 @@ defineOptions({
 
 const currentUser = {
   avatar: "https://gw.alipayobjects.com/zos/rmsportal/BiazfanxmamNRoxxVxka.png",
-  name: "吴彦祖",
+  name: "亲爱的",
   userid: "00000001",
   email: "antdesign@alipay.com",
   signature: "海纳百川，有容乃大",
@@ -238,7 +238,7 @@ const projectNotice = [
     logo: "https://gw.alipayobjects.com/zos/rmsportal/zOsKZmFRdUtvpqCImOVY.png",
     description: "希望是一个好东西，也许是最好的，好东西是不会消亡的",
     updatedAt: "6 年前",
-    member: "全组都是吴彦祖",
+    member: "全组都是亲爱的",
     href: "",
     memberLink: "",
   },

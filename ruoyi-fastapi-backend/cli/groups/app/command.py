@@ -2,7 +2,7 @@ from typing import Annotated, Literal
 
 import typer
 
-from cli.context import EnvOption, OutputOption
+from cli.context import EnvOption, OutputOption, UseMergedOption
 
 from .controller import AppCommandController
 
@@ -31,15 +31,17 @@ def run_app(
 def doctor(
     env: EnvOption = 'dev',
     output: OutputOption = 'text',
+    use_merged: UseMergedOption = False,
 ) -> None:
     """
     执行应用启动前检查。
 
     :param env: 当前命令运行环境
     :param output: 输出格式
+    :param use_merged: 是否使用 .env.merged 进行检查
     :return: None
     """
-    _APP_COMMAND_CONTROLLER.doctor(env, output)
+    _APP_COMMAND_CONTROLLER.doctor(env, output, use_merged=use_merged)
 
 
 @app.command('config', help='查看当前应用配置快照')
