@@ -5,6 +5,16 @@
 </template>
 
 <script setup>
+/**
+ * 合同详情抽屉（占位）
+ *
+ * 字段命名遵循 ADR D24：后端返回 camelCase。
+ * 后续接入 controller 时，按以下字段取数：
+ *   id, contractNo, title, contractType, contractTypeLabel, partyA, partyB,
+ *   amount, signDate, department, businessType, customerId, customerName,
+ *   status, statusLabel, currentStep, currentRole, currentRoleLabel,
+ *   rejectCount, createdBy, createdByName, createTime, updateTime, remark, attachments
+ */
 import { computed } from 'vue'
 
 const props = defineProps({

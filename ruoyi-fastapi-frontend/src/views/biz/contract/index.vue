@@ -18,21 +18,21 @@
       </div>
 
       <el-table :data="filteredList" border stripe>
-        <el-table-column prop="contract_no" label="合同编号" width="150" />
+        <el-table-column prop="contractNo" label="合同编号" width="150" />
         <el-table-column prop="title" label="合同名称" min-width="180" show-overflow-tooltip />
         <el-table-column label="类型" width="130" align="center">
           <template #default="{ row }">
-            <el-tag size="small" effect="plain">{{ row.contract_type_label }}</el-tag>
+            <el-tag size="small" effect="plain">{{ row.contractTypeLabel }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="customer_name" label="客户" min-width="130" show-overflow-tooltip />
+        <el-table-column prop="customerName" label="客户" min-width="130" show-overflow-tooltip />
         <el-table-column label="金额(元)" width="130" align="right">
           <template #default="{ row }">{{ Number(row.amount || 0).toLocaleString() }}</template>
         </el-table-column>
         <el-table-column label="状态 / 当前环节" width="160" align="center">
           <template #default="{ row }">
-            <el-tag :type="STATUS_META[row.status]?.type">{{ row.status_label }}</el-tag>
-            <div v-if="row.current_role_label" class="cur-role">→ {{ row.current_role_label }}</div>
+            <el-tag :type="STATUS_META[row.status]?.type">{{ row.statusLabel }}</el-tag>
+            <div v-if="row.currentRoleLabel" class="cur-role">→ {{ row.currentRoleLabel }}</div>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="300" align="center">
@@ -51,14 +51,14 @@
 
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑合同' : '新建合同'" width="600px">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="96px">
-        <el-form-item label="单据类型" prop="contract_type">
-          <el-radio-group v-model="form.contract_type">
+        <el-form-item label="单据类型" prop="contractType">
+          <el-radio-group v-model="form.contractType">
             <el-radio-button :value="CONTRACT_TYPES.PAYMENT">业务付款审批单</el-radio-button>
             <el-radio-button :value="CONTRACT_TYPES.BUSINESS">业务审批单</el-radio-button>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="合同编号" prop="contract_no">
-          <el-input v-model="form.contract_no" :disabled="isEdit" placeholder="如 HT-2026-010" />
+        <el-form-item label="合同编号" prop="contractNo">
+          <el-input v-model="form.contractNo" :disabled="isEdit" placeholder="如 HT-2026-010" />
         </el-form-item>
         <el-form-item label="合同名称" prop="title">
           <el-input v-model="form.title" />
@@ -68,16 +68,16 @@
             <el-form-item label="申请部门"><el-input v-model="form.department" /></el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="业务类型"><el-input v-model="form.business_type" /></el-form-item>
+            <el-form-item label="业务类型"><el-input v-model="form.businessType" /></el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="客户名称"><el-input v-model="form.customer_name" /></el-form-item>
-        <el-form-item label="乙方"><el-input v-model="form.party_b" /></el-form-item>
+        <el-form-item label="客户名称"><el-input v-model="form.customerName" /></el-form-item>
+        <el-form-item label="乙方"><el-input v-model="form.partyB" /></el-form-item>
         <el-form-item label="金额(元)" prop="amount">
           <el-input-number v-model="form.amount" :min="0" :step="10000" style="width: 100%" />
         </el-form-item>
         <el-form-item label="签订日期">
-          <el-date-picker v-model="form.sign_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+          <el-date-picker v-model="form.signDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
         </el-form-item>
         <el-form-item label="备注"><el-input v-model="form.remark" type="textarea" /></el-form-item>
         <el-form-item label="合同附件">
@@ -131,7 +131,7 @@ const filteredList = computed(() => {
   const kw = keyword.value.trim().toLowerCase()
   if (!kw) return list.value
   return list.value.filter((c) =>
-    [c.contract_no, c.title, c.customer_name, c.party_b]
+    [c.contractNo, c.title, c.customerName, c.partyB]
       .filter(Boolean)
       .some((v) => String(v).toLowerCase().includes(kw))
   )
@@ -140,7 +140,8 @@ const filteredList = computed(() => {
 async function load() {
   loading.value = true
   try {
-    list.value = await listContracts()
+    const res = await listContracts()
+    list.value = res?.rows ?? []
   } catch {
     list.value = []
   } finally {
@@ -154,21 +155,21 @@ const isEdit = ref(false)
 const editingId = ref(null)
 const formRef = ref()
 const emptyForm = () => ({
-  contract_no: '',
+  contractNo: '',
   title: '',
-  contract_type: CONTRACT_TYPES.PAYMENT,
+  contractType: CONTRACT_TYPES.PAYMENT,
   department: '',
-  business_type: '',
-  customer_name: '',
-  party_a: '山东出版供应链管理公司',
-  party_b: '',
+  businessType: '',
+  customerName: '',
+  partyA: '山东出版供应链管理公司',
+  partyB: '',
   amount: 0,
-  sign_date: null,
+  signDate: null,
   remark: ''
 })
 const form = reactive(emptyForm())
 const rules = {
-  contract_no: [{ required: true, message: '请输入合同编号', trigger: 'blur' }],
+  contractNo: [{ required: true, message: '请输入合同编号', trigger: 'blur' }],
   title: [{ required: true, message: '请输入合同名称', trigger: 'blur' }]
 }
 
@@ -183,16 +184,16 @@ function openEdit(row) {
   isEdit.value = true
   editingId.value = row.id
   Object.assign(form, {
-    contract_no: row.contract_no,
+    contractNo: row.contractNo,
     title: row.title,
-    contract_type: row.contract_type,
+    contractType: row.contractType,
     department: row.department,
-    business_type: row.business_type,
-    customer_name: row.customer_name,
-    party_a: row.party_a,
-    party_b: row.party_b,
+    businessType: row.businessType,
+    customerName: row.customerName,
+    partyA: row.partyA,
+    partyB: row.partyB,
     amount: Number(row.amount || 0),
-    sign_date: row.sign_date || null,
+    signDate: row.signDate || null,
     remark: row.remark
   })
   formRef.value?.clearValidate?.()
@@ -203,7 +204,7 @@ async function onSave() {
   saving.value = true
   try {
     if (isEdit.value) {
-      const { contract_no, ...rest } = form
+      const { contractNo, ...rest } = form
       await updateContract(editingId.value, { ...rest })
       ElMessage.success('修改成功')
     } else {
@@ -229,9 +230,9 @@ async function onSubmit(row) {
 }
 async function onDelete(row) {
   try {
-    await ElMessageBox.confirm(
-      `确定删除合同「${row.title}」(${row.contract_no})吗？此操作不可恢复。`,
-      '删除确认',
+await ElMessageBox.confirm(
+    `确定删除合同「${row.title}」(${row.contractNo})吗？此操作不可恢复。`,
+    '删除确认',
       { type: 'warning', confirmButtonText: '确定删除', cancelButtonText: '取消' }
     )
   } catch {

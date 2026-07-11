@@ -1,0 +1,1 @@
+"""模块级空包，使 ORM、Schema、Service、DAO 可被自动扫描引用。"""

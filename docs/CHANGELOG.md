@@ -4,6 +4,53 @@
 
 ---
 
+## 2026-07-11 — v3.0 API 字段命名一致性重构（ADR D24 落地）
+
+### 重大变更
+
+**全站 JSON 字段统一 camelCase**（ADR D24）。`module_biz` 业务模块原本走 snake_case JSON（`contract_no` / `customer_name` / `current_role_label` 等），与 `module_admin`（RuoYi 原生 camelCase）不一致；本次重构统一为 camelCase，删除前后端混用的隐患。
+
+### 代码变更
+
+**后端**
+- `module_biz/entity/vo/contract_vo.py`：`ContractBaseModel` 启用 `alias_generator=to_camel` + `populate_by_name=True`；移除 snake_case 偏离说明
+- `module_biz/entity/vo/customer_vo.py`：`_Base` 启用 `alias_generator=to_camel` + `populate_by_name=True`
+- `module_biz/entity/do/customer_do.py`：新增 `customer_code` 列（VARCHAR(50) UNIQUE，业务编号 KH-NNN）
+- `module_biz/dao/customer_dao.py`：新增 `get_by_customer_code`、`get_max_customer_seq` 方法；list_page 关键字搜索支持 customer_code
+- `module_biz/service/customer_service.py`：重写以支持 `customer_code` 自动生成与冲突校验
+- `sql/biz_init.sql`：`biz_customer` 表新增 `customer_code` 列 + UNIQUE 索引；演示数据回填 `KH-001~KH-005`
+
+**前端**
+- `src/views/biz/contract/index.vue`：所有字段重命名为 camelCase（`contractNo` / `contractTypeLabel` / `customerName` / `partyB` / `signDate` / `businessType` / `statusLabel` / `currentRoleLabel`）
+- `src/views/biz/customer/index.vue`：所有字段重命名为 camelCase（`customerCode` / `customerName` / `contactName` / `contactPhone` / `qualificationFiles`）；新增 `customerCode` 表单字段（编辑禁用）
+- `src/api/biz/contract.js`：Query 参数 camelCase（`contractNo` / `excludeId`）
+- `src/components/ContractDetailDrawer.vue`：占位注释列出后续接入的 camelCase 字段清单
+
+### 文档变更
+
+- `04-开发/ARD/ADR-架构决策记录.md` v1.1 → **v1.2**：新增 **D24「API 字段命名一致性」**（决策项 + 完整记录：问题 / 决策 / Rationale / 实现方式 / 字段映射示例 / 影响范围）
+- `03-设计/API设计文档.md` §1.4：加强为强约束，标注 ADR D24 引用
+- `04-开发/开发进度台账.md` v2.2 → **v2.3**：3.1、3.3、7.5、7.6 状态 🟢；变更记录追加本次重构
+- `CHANGELOG.md`（本文件）：追加 v3.0 记录
+
+### 兼容性保障
+
+- `populate_by_name=True` 保留：老客户端若仍发 snake_case 字段，后端能继续接受（自动 fallback）
+- `as_query` 装饰器读取 `model_field.alias`：自动接收 camelCase Query 参数（无需前端手工调字段名）
+- 数据库列名（snake_case）未改动：与 ORM 100% 对齐，无迁移脚本
+
+### 受影响范围
+
+| 层级 | 改动 | 风险 |
+|------|------|------|
+| 前端字段引用 | 5 个文件改动 | 🟢 已逐字段核对 |
+| 后端序列化 | 2 个 VO 文件 | 🟢 沿用 RuoYi 原生方案 |
+| 数据库 schema | 1 个新列 + 唯一索引 | 🟡 新部署执行 `biz_init.sql` 即可 |
+| 业务逻辑 | customer_service 加 KH-NNN 自动生成 | 🟢 简单 seq 查询，无并发风险 |
+| 文档 | 4 份同步更新 | 🟢 |
+
+---
+
 ## 2026-07-10 — v2.3 施工前准备完成
 
 ### 代码变更

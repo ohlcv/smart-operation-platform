@@ -1,7 +1,7 @@
 # 架构决策记录（ADR）
 
-> 文档版本：v1.1  
-> 编写日期：2026-07-10  
+> 文档版本：v1.2  
+> 编写日期：2026-07-11  
 > 文档定位：记录项目关键架构决策、业务决策及其 rationale；作为后续开发、评审、新人 onboarding 的依据。
 
 ---
@@ -26,6 +26,7 @@
 | D14 | 小程序技术栈 | 微信小程序 | ✅ 已确认 |
 | D15 | 数据库选型 | MySQL 8.0 | ✅ 已确认 |
 | D23 | 前端登录页文件组织 | 科技风登录页用 `login/index.vue` 目录结构，替换 RuoYi 原生 `login.vue` 单文件 | ✅ 已确认 |
+| D24 | API 字段命名一致性 | JSON 请求/响应字段一律 camelCase，全站强约束；Python 用 snake_case 由 Pydantic `alias_generator=to_camel` 自动序列化 | ✅ 已确认 |
 
 ---
 
@@ -370,6 +371,51 @@ draft ──提交──► pending ──审批通过──► approved
 ## 五、决策变更记录
 记录决策的变更历史，便于追溯。
 ```
+
+---
+
+### D24：API 字段命名一致性
+
+**问题**：项目存在两套 JSON 字段命名风格：`module_admin`（RuoYi 原生）使用 camelCase（`alias_generator=to_camel`），`module_biz` 业务模块（合同/客户）使用 snake_case。两套并存造成 API 风格不一致、前端页面混用（`system/*` 用 camelCase、`biz/*` 用 snake_case），且与 API 设计文档 §1.4 的 camelCase 强约束不一致。
+
+**决策**：
+- JSON 请求/响应字段**全站统一 camelCase**，Python 层使用 snake_case
+- 后端统一通过 Pydantic `alias_generator=to_camel` + `populate_by_name=True` 自动序列化
+- 数据库层保持 snake_case 不变
+- URL 路径保持 kebab-case 不变
+- `as_query` 装饰器读取 `model_field.alias`，自动接收 camelCase Query 参数
+
+**Rationale**：
+- 与 RuoYi 原版（yangzongzhuan/RuoYi-FastAPI CamelModel）约定一致
+- 业界主流（71% 公开 REST API 使用 camelCase）
+- JS/TS 前端无需 `humps` 转换层，符合 JS 属性访问习惯
+- Google API 规范（AIP-140）、JSON:API 规范均推荐 camelCase
+- `populate_by_name=True` 保留可同时接受 snake_case 输入，兼容老客户端
+
+**实现方式**：
+| 层级 | 命名 | 工具 |
+|------|------|------|
+| URL 路径 | kebab-case | 静态 |
+| JSON 请求/响应 | **camelCase** | Pydantic `alias_generator=to_camel` |
+| Python 类属性 | snake_case | 代码风格（PEP 8）|
+| 数据库字段 | snake_case | ORM/SQL |
+
+**字段映射示例**：
+| Python（snake）| JSON（camel）|
+|---|---|
+| `contract_no` | `contractNo` |
+| `current_role_label` | `currentRoleLabel` |
+| `customer_name` | `customerName` |
+| `qualification_files` | `qualificationFiles` |
+| `page_num` / `page_size` | `pageNum` / `pageSize` |
+
+**影响范围**：
+- 后端：`module_biz/entity/vo/{contract,customer}_vo.py` 启用 `alias_generator=to_camel`
+- 前端：`src/views/biz/{contract,customer}/` 页面字段重命名
+- 前端：`src/api/biz/contract.js` Query 参数 camelCase
+- 数据库：未改动（snake_case 保持）
+
+**关联决策**：D06（甲乙方字段名 `party_a`/`party_b` 仍按 Python 层 snake_case，JSON 层自动 `partyA`/`partyB`）。
 
 ---
 

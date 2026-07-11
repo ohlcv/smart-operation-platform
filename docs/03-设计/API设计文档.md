@@ -82,10 +82,14 @@ RuoYi 统一响应包装，格式如下：
 | 层级 | 命名规范 | 示例 |
 |------|----------|------|
 | URL 路径 | kebab-case | `/system-user`, `/biz-contract` |
-| JSON 请求/响应 | camelCase | `contractNo`, `currentStep`, `partyA` |
+| JSON 请求/响应 | **camelCase** | `contractNo`, `currentStep`, `partyA` |
 | 数据库字段 | snake_case | `contract_no`, `current_step`, `party_a` |
 
 > **驼峰化**：后端统一使用 Pydantic `alias_generator=to_camel`，Python 用蛇形命名，JSON 用驼峰命名。
+> 保留 `populate_by_name=True`，可同时接受 snake_case 输入（兼容老客户端）。
+
+> **强约束（ADR D24）**：全站 `module_admin` 与 `module_biz` 必须一致使用 camelCase，禁止混用 snake_case。
+> 任何新模块必须继承统一基类或显式配置 `alias_generator=to_camel`。
 
 ### 1.5 HTTP 方法使用规范
 
