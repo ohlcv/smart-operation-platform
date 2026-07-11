@@ -28,6 +28,7 @@ class BizCustomer(Base):
     contact_phone = Column(String(20), nullable=True, comment='联系电话')
     contact_email = Column(String(100), nullable=True, comment='邮箱')
     address = Column(String(300), nullable=True, comment='地址')
+    province = Column(String(40), nullable=True, comment='省份（v3.3 路线 C 地图联动）')
     business_license = Column(String(200), nullable=True, comment='营业执照编号')
     tax_no = Column(String(50), nullable=True, comment='纳税人识别号')
     qualification_files = Column(JSON, nullable=True, comment='资质文件列表 [{name,url}]')

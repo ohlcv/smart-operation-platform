@@ -1,6 +1,6 @@
 # 架构决策记录（ADR）
 
-> 文档版本：v1.3  
+> 文档版本：v1.4  
 > 编写日期：2026-07-11  
 > 文档定位：记录项目关键架构决策、业务决策及其 rationale；作为后续开发、评审、新人 onboarding 的依据。
 
@@ -30,6 +30,8 @@
 | D25 | 前端样式主题适配规范 | 所有 `.vue` 页面/组件的样式中，色值（背景/文字/边框）必须通过 Element Plus CSS 变量（`var(--el-*)`）引用；禁止硬编码 EP 调色板色值；`html.dark` 切换时自动跟随；业务语义色（警告/金额/驳回等）允许硬编码但需显式注明 | ✅ 已确认 |
 | D26 | 注解层 PEP 563 forward ref 兼容性 | 凡通过 `inspect.signature(func).parameters` 解析参数类型注解的工具函数（@Log、参数名提取等），必须用 `typing.get_type_hints(func)` 解析 forward ref 后再做类型匹配；controller 启用 `from __future__ import annotations` 时注解会是字符串，原生比较会失败 | ✅ 已确认 |
 | D27 | 前端顶级路由必须 redirect + 侧边栏绝对路径短路 | 顶层父路由（含 `/biz`、`/cockpit` 等独立顶级路由）必须配置 `redirect` 到第一个子路由；侧边栏 `SidebarItem.resolvePath` 必须短路以 `/` 开头的 routePath，避免与空 basePath 拼出 `//xxx` | ✅ 已确认 |
+| D28 | 路线 C 战略驾驶舱升级范围 | Pydantic 模型统一采用别名显式声明（`Field(alias='xx', serialization_alias='xx')`）优先于 `alias_generator=to_camel`，避免纯数字+字母连写的边界 case 把字段转成「首字母大写」；具体场景：`trend_7d` → 显式 alias `trend7d` | ✅ 已确认 |
+| D29 | 战略驾驶舱大屏形态（路线 C） | 驾驶舱呈现两种形态：① **工作台入口** `/cockpit/index`（嵌 Layout，普通业务页，6 KPI 可跳转 + AI 卡片）；② **真·大屏** `/cockpit/dashboard`（嵌 Layout，三栏分栏 + 头部 + 物流飞线 + 审批跑马灯 + AI 雷达 + 省份联动）；③ **全屏投放** `/cockpit/screen`（hidden 路由，自动 requestFullscreen，Esc 退）；中部地图中枢 hub = 北京；省份联动后端字段为 `province`（`biz_contract.province` 由 `biz_customer.province` 派生） | ✅ 已确认 |
 
 ---
 
@@ -596,10 +598,158 @@ function resolvePath(routePath, routeQuery) {
 }
 ```
 
+**修复（cockpit 路由）**：
+
+```js
+// ruoyi-fastapi-frontend/src/router/index.js
+{
+  path: '/cockpit',
+  component: Layout,
+  redirect: '/cockpit/index',
+  permissions: ['biz:cockpit:view'],
+  children: [
+    {
+      path: 'index',
+      component: () => import('@/views/biz/cockpit/index.vue'),
+      name: 'BizCockpit',
+      meta: { title: '战略驾驶舱', icon: 'pie-chart', noCache: false }
+    }
+  ]
+}
+```
+
 **影响范围**：
 
 - 修改：`src/router/index.js`（cockpit 父路由补 redirect）、`src/layout/components/Sidebar/SidebarItem.vue`（resolvePath 短路）
 - 受益：所有顶级父路由（不只 cockpit），未来新增 `/xxx` 顶级路由也不会再触发 `//xxx` 警告
+
+---
+
+### D28：路线 C 战略驾驶舱升级 - Pydantic 别名显式声明（避坑 `trend7d`）
+
+**问题**：路线 C 重构 cockpit 时，Pydantic `CockpitOverviewModel.trend_7d: list[Trend7dItemModel]` 由 `alias_generator=to_camel` 自动转 camelCase，实测**得到的字段名是 `trend7D`** 而不是预期的 `trend7d`：
+
+```python
+>>> from pydantic.alias_generators import to_camel
+>>> to_camel('trend_7d')
+'trend7D'  # 数字当词边界，首字母大写
+```
+
+前端 `dashboard.vue` 写死读 `data.trend7d`，后端返回 `trend7D`，整个趋势图**静默不显示**（`forEach` 不报错但空数组）。
+
+**决策**：
+
+- 所有 Pydantic 模型若字段名包含「数字+字母连写」边界（`trend_7d`、`level_3_id` 等），**必须**用 `Field(alias='xx', serialization_alias='xx')` 显式声明，**优先于** `alias_generator=to_camel`
+- 普通字段（纯字母）继续走 `to_camel`，无需手写 alias
+- 影响本项目唯一已知案例：`CockpitOverviewModel.trend_7d` → 显式 `alias='trend7d', serialization_alias='trend7d'`
+
+**Rationale**：
+
+- `to_camel` 的算法是「下划线 → 驼峰 + 每个词首字母大写」，不区分字母和数字；`trend_7d` 被解析成 `[trend][7][d]` 三个词，组合时 `d` 单独被首字母大写成 `D`
+- 这是 Pydantic 的设计行为，不是 bug；社区已有同名 issue
+- 显式 alias 比回避命名（`trend_sevenday`）更语义化，且不影响 `from_attributes` 模式（Python 侧仍按 `trend_7d` 访问）
+- 一处显式声明闭环；未来新增字段名前先问一句「是不是数字+字母连写」即可
+
+**修复**：
+
+```python
+# ruoyi-fastapi-backend/module_biz/entity/vo/cockpit_vo.py
+class CockpitOverviewModel(CockpitBaseModel):
+    kpi: CockpitKpiModel = Field(default_factory=CockpitKpiModel)
+    trend_7d: list[Trend7dItemModel] = Field(
+        default_factory=list,
+        alias='trend7d',                      # ← 关键
+        serialization_alias='trend7d',         # ← 关键（dump by_alias 用）
+    )
+    # 其他字段继续走 alias_generator=to_camel
+```
+
+验证：
+
+```python
+>>> CockpitOverviewModel(trend_7d=[]).model_dump(by_alias=True, mode='json').keys()
+dict_keys(['channelLocations', 'generatedAt', 'kpi', 'province', 'recentApprovals',
+           'statusDistribution', 'topCustomers', 'trend7d'])  # ✓ trend7d
+```
+
+**影响范围**：
+
+- 当前唯一影响：`CockpitOverviewModel.trend_7d` 一处
+- 项目其他 Pydantic 模型扫一遍，凡含「`_数字字母`」边界（如 `step_3`、`level_2_score`）走同样规则
+
+**关联 DEBUG**：`DEBUG/trend7d-to-camel-2026-07-12.md`。
+
+---
+
+### D29：战略驾驶舱大屏形态（路线 C）
+
+**问题**：v3.0/v3.3 路线 A/B 落地后，驾驶舱仍是一个普通业务页（嵌 Layout、单卡片堆叠），对比 demo1 `DataScreen.vue` 的真·大屏（头部 + 三栏 + 物流飞线 + 审批跑马灯 + AI 雷达 + 省份联动 + 全屏投放）有肉眼可见的形态差距。
+
+**决策**：驾驶舱呈现「**三形态**」：
+
+1. **工作台入口** `/cockpit/index`
+   - 嵌 Layout 的普通业务页，6 个 KPI 数字翻牌
+   - KPI 卡可点击 → 跳转对应业务页（`/biz/contract`、`/biz/approval` 等）
+   - AI 大脑精简摘要卡片（高/中/低风险标签 + 建议条目）
+   - Top10 / 状态分布 / 审批时间轴 / 弱化地图
+   - 右上角「进入大屏」按钮 → `window.open('/cockpit/dashboard', '_blank')`
+
+2. **真·大屏** `/cockpit/dashboard`
+   - 嵌 Layout（activeMenu 指向 `/cockpit/index` 不让侧边栏重复高亮）
+   - 顶部标题栏：「智能运营平台 · 数据驾驶舱」+ 英文副标题 + 在线状态点 + 实时时钟 + 今日日期 + 全屏投放按钮
+   - 三栏分栏（左 26% / 中央 flex:1 / 右 26%）：
+     - 左：6 KPI（数字翻牌 + 旋入动画）+ 7 日合同趋势
+     - 中：渠道天眼地图（demo1 同款 `effectScatter` + `lines` 物流飞线 + 中枢高亮 + `visualMap` 省份着色 + `province-click` 联动）
+     - 右：7 级审批流跑马灯（hover 暂停 + 循环滚动）+ AI 大脑（6 维雷达 + 打字机轮播 summary/risks/suggestions）
+   - 省份联动：点地图省份 → KPI/趋势/状态分布/Top10 全部按 `province` 过滤；「← 返回全国」按钮回全国视图
+   - 60s 自动刷新 overview，90s 自动刷新 AI
+
+3. **全屏投放** `/cockpit/screen`
+   - hidden 路由（侧边栏不出现）
+   - 与 `/cockpit/dashboard` 共用 dashboard 组件
+   - 检测到 `route.meta.fullscreen === true` 自动 `document.documentElement.requestFullscreen()`
+   - 按 Esc 或浏览器退全屏 → 自动 `router.push('/cockpit/index')`
+   - 演示场景专用，与登录用户共用 token
+
+**Rationale**：
+
+- 三形态对应三类用户：**业务经办**（日常看工作台）、**决策层**（鼠标点大屏看省份联动）、**演示/汇报**（全屏投放）
+- 工作台与大屏共用 backend，单端点 `/biz/cockpit/overview?province=xx` 数据契约；新增 `province` 参数比 fork 两个 service 干净
+- dashboard.vue 是 Layout 嵌入版还是 fullscreen 投放版由 route meta 决定，**单一组件、单一逻辑**，避免双份代码漂移
+- 中枢 hub 默认北京（覆盖集团总部），未来要换成具体集团总部只改 `ScreenMap` 的 `hub` prop
+- 审批跑马灯用 `recentApprovals.concat(recentApprovals)` 复制一份接尾实现无缝循环（demo1 同款 CSS 动画），无 JS 计时器依赖
+- DAO 改 `asyncio.gather` 并发（10 个 SQL → 单次延迟 < 200ms）让工作台/大屏切换体感无白屏
+
+**架构图**（数据流）：
+
+```
+                    /biz/cockpit/overview?province=xx
+                              │
+        ┌─────────────────────┼─────────────────────┐
+        ▼                     ▼                     ▼
+   工作台 /cockpit/index   大屏 /cockpit/dashboard   全屏 /cockpit/screen
+   工作台：6 KPI + AI 摘要   大屏：头部 + 三栏       全屏：复用 dashboard + 自动 fullscreen
+                            （KPI + 趋势 + 天眼           + Esc 退
+                            跑马灯 + AI 雷达）
+                            + 省份联动
+```
+
+**后端 province 数据链**：
+
+```
+biz_customer.province (RED 增列)
+   ↓ 派生
+biz_contract.province (RED 增列，由 cockpit_v3_3_init.sql 的 UPDATE 一次性回填)
+   ↓ 过滤
+CockpitOverviewModel.province 字段返回当前视图（端点 echo 给前端）
+```
+
+**影响范围**：
+
+- 后端：4 文件（vo / dao / service / controller）+ 1 增量 SQL
+- 前端：4 文件（api / ScreenMap / dashboard.vue / cockpit/index.vue）+ 1 路由配置
+- 数据库：3 表加字段（biz_channel +4 / biz_contract +1 / biz_customer +1）+ 演示数据回填
+- start-dev.sh：v3.3 增量脚本探测逻辑（已建库自动跑 ALTER）
 
 ---
 

@@ -174,6 +174,7 @@ run_local_mode() {
           -v $PROJECT_ROOT/ruoyi-fastapi-backend/sql/ruoyi-fastapi.sql:/docker-entrypoint-initdb.d/01-ruoyi-fastapi.sql \
           -v $PROJECT_ROOT/ruoyi-fastapi-backend/sql/biz_init.sql:/docker-entrypoint-initdb.d/02-biz-init.sql \
           -v $PROJECT_ROOT/ruoyi-fastapi-backend/sql/biz_menus_roles_init.sql:/docker-entrypoint-initdb.d/03-biz-menus-roles.sql \
+          -v $PROJECT_ROOT/ruoyi-fastapi-backend/sql/cockpit_v3_3_init.sql:/docker-entrypoint-initdb.d/04-cockpit-v3-3.sql \
           -v $PROJECT_ROOT/mysql-conf/charset.cnf:/etc/mysql/conf.d/charset.cnf:ro" || echo "-p 16379:6379") \
         $([ "$name" = "ruoyi-mysql" ] && echo "mysql:8.0 --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci --skip-character-set-client-handshake=1" || echo "redis:latest")
     fi
@@ -195,6 +196,23 @@ run_local_mode() {
   done
   sleep 2
   log_info "  MySQL + Redis 就绪 ✓"
+
+  # ---- 增量 SQL：已建库时手动跑（initdb.d 只在首次启动生效） ----
+  if is_container_running "ruoyi-mysql"; then
+    # 探测 biz_channel.province 列是否存在，不存在就说明 v3.3 增量未跑
+    has_province=$(LANG=C docker exec ruoyi-mysql mysql --default-character-set=utf8mb4 \
+      -uroot -proot -N -B \
+      -e "SHOW COLUMNS FROM biz_channel LIKE 'province'" 2>/dev/null | wc -l)
+    if [ "${has_province:-0}" = "0" ]; then
+      log_warn "  检测到 biz_channel.province 缺失，自动执行 v3.3 增量脚本..."
+      LANG=C docker exec -i ruoyi-mysql mysql --default-character-set=utf8mb4 \
+        -uroot -proot ruoyi-fastapi \
+        < "$BACKEND_DIR/sql/cockpit_v3_3_init.sql" 2>&1 | tail -10 || \
+        log_warn "  v3.3 增量脚本执行失败，请手动跑: docker exec -i ruoyi-mysql mysql -uroot -proot ruoyi-fastapi < $BACKEND_DIR/sql/cockpit_v3_3_init.sql"
+    else
+      log_info "  v3.3 增量已应用 ✓"
+    fi
+  fi
 
   # ---- MySQL 字符集自检（防双重 UTF-8 编码问题） ----
   if is_container_running "ruoyi-mysql"; then

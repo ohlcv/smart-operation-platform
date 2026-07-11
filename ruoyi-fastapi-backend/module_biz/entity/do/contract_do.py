@@ -30,6 +30,7 @@ class BizContract(Base):
     business_type = Column(String(50), nullable=True, comment='业务类型')
     customer_id = Column(BigInteger, nullable=True, comment='关联客户ID biz_customer.id')
     customer_name = Column(String(200), nullable=True, comment='冗余客户名称（便于列表展示）')
+    province = Column(String(40), nullable=True, comment='客户省份（v3.3 路线 C 省份联动，冗余便于聚合查询）')
     remark = Column(Text, nullable=True, comment='合同备注')
     attachments = Column(JSON, nullable=True, comment='附件列表 [{name,url}]')
     status = Column(String(20), nullable=False, default='draft', comment='draft/pending/approved/rejected')

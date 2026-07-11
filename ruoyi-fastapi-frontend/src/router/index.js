@@ -219,8 +219,23 @@ export const dynamicRoutes = [
         component: () => import('@/views/biz/cockpit/index.vue'),
         name: 'BizCockpit',
         meta: { title: '战略驾驶舱', icon: 'pie-chart', noCache: false }
+      },
+      {
+        path: 'dashboard',
+        component: () => import('@/views/cockpit/dashboard.vue'),
+        name: 'BizCockpitDashboard',
+        meta: { title: '数据驾驶舱（大屏）', activeMenu: '/cockpit/index', noCache: false }
       }
     ]
+  },
+  {
+    // v3.3 路线 C：独立全屏投放路由（demo1 同款 /screen）
+    path: '/cockpit/screen',
+    component: () => import('@/views/cockpit/dashboard.vue'),
+    name: 'BizCockpitScreen',
+    hidden: true,
+    permissions: ['biz:cockpit:view'],
+    meta: { title: '大屏投放', noCache: false, fullscreen: true }
   }
 ] // eslint-disable-line
 

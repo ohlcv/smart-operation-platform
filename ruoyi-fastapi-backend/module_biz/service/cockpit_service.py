@@ -9,10 +9,16 @@
 - 渠道地图分布
 - 待办审批（按当前用户角色）
 
+v3.3 路线 C 升级：
+- overview 加 province 参数支持省份联动
+- DAO 改 asyncio.gather 并发（9 SQL → 单次延迟 < 200ms）
+- 新增 ai_diagnose 入口（AI 智能大脑）
+
 缓存策略：60s 内存缓存（避免高频访问打 DB），多用户场景下数据相差不大。
 """
 from __future__ import annotations
 
+import asyncio
 import time
 from datetime import datetime
 from typing import Any
@@ -21,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_biz.dao.cockpit_dao import CockpitDAO
-from module_biz.entity.vo.cockpit_vo import CockpitOverviewModel
+from module_biz.entity.vo.cockpit_vo import AiDiagnoseModel, CockpitOverviewModel
 
 
 # 简单的模块级缓存（线程安全的 dict + 时间戳）
@@ -65,25 +71,48 @@ def _current_user_role_keys(current_user: CurrentUserModel | None) -> list[str]:
 
 class CockpitService:
     @staticmethod
-    async def overview_services(db: AsyncSession, current_user: CurrentUserModel | None) -> dict[str, Any]:
+    async def overview_services(
+        db: AsyncSession,
+        current_user: CurrentUserModel | None,
+        province: str = '',
+    ) -> dict[str, Any]:
         """GET /biz/cockpit/overview 主入口。
 
-        60s 缓存：相同用户两次访问 60s 内返回同一份数据。
-        cache key = user_id || '_' || epoch_bucket(60s)
+        60s 缓存：相同 province + user_id 60s 内返回同一份数据。
+        v3.3：DAO 改 asyncio.gather 并发，9 个 SQL 并发执行。
         """
         uid = (current_user.user.user_id if current_user and current_user.user else 0)
-        cache_key = f"cockpit_overview_{uid}"
+        cache_key = f"cockpit_overview_{uid}_{province or 'national'}"
         cached = _cache_get(cache_key)
         if cached is not None:
             return cached
 
-        # 6 个 KPI
-        kpi_contract = await CockpitDAO.kpi_contract(db)
-        kpi_customer = await CockpitDAO.kpi_customer(db)
-        kpi_channel = await CockpitDAO.kpi_channel(db)
-        kpi_invoice = await CockpitDAO.kpi_invoice_pending(db)
         role_keys = _current_user_role_keys(current_user)
-        kpi_approval = await CockpitDAO.kpi_approval_pending(db, role_keys)
+
+        # 9 个 DAO 调用并发执行
+        (
+            kpi_contract,
+            kpi_customer,
+            kpi_channel,
+            kpi_invoice,
+            kpi_approval,
+            trend_7d,
+            status_distribution,
+            top_customers,
+            recent_approvals,
+            channel_locations,
+        ) = await asyncio.gather(
+            CockpitDAO.kpi_contract(db, province),
+            CockpitDAO.kpi_customer(db),
+            CockpitDAO.kpi_channel(db),
+            CockpitDAO.kpi_invoice_pending(db),
+            CockpitDAO.kpi_approval_pending(db, role_keys),
+            CockpitDAO.trend_7d(db, province),
+            CockpitDAO.status_distribution(db, province),
+            CockpitDAO.top_customers(db, province),
+            CockpitDAO.recent_approvals(db),
+            CockpitDAO.channel_locations(db),
+        )
 
         kpi_payload = {
             **kpi_contract,
@@ -93,13 +122,6 @@ class CockpitService:
             'approvalPending': kpi_approval,
         }
 
-        # 7 个并发查询（先后顺序无关，但为简洁起见顺序执行）
-        trend_7d = await CockpitDAO.trend_7d(db)
-        status_distribution = await CockpitDAO.status_distribution(db)
-        top_customers = await CockpitDAO.top_customers(db)
-        recent_approvals = await CockpitDAO.recent_approvals(db)
-        channel_locations = await CockpitDAO.channel_locations(db)
-
         overview = CockpitOverviewModel(
             kpi=kpi_payload,  # type: ignore[arg-type]
             trend_7d=trend_7d,
@@ -108,8 +130,30 @@ class CockpitService:
             recent_approvals=recent_approvals,
             channel_locations=channel_locations,
             generated_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            province=province,
         )
 
         result = overview.model_dump(by_alias=True, mode='json')
         _cache_set(cache_key, result)
         return result
+
+    @staticmethod
+    async def ai_diagnose_services(
+        db: AsyncSession,
+        current_user: CurrentUserModel | None,
+    ) -> dict[str, Any]:
+        """GET /biz/cockpit/ai-diagnose 主入口。
+
+        AI 智能大脑：6 维雷达 + 风险诊断 + 资金建议。
+        30s 缓存（数据时效更敏感）。
+        """
+        uid = (current_user.user.user_id if current_user and current_user.user else 0)
+        cache_key = f"cockpit_ai_diagnose_{uid}"
+        cached = _cache_get(cache_key)
+        if cached is not None and time.time() - _CACHE[cache_key][0] < 30:
+            return cached
+
+        role_keys = _current_user_role_keys(current_user)
+        result = await CockpitDAO.ai_diagnose(db, role_keys)
+        _cache_set(cache_key, result.model_dump(by_alias=True, mode='json'))
+        return result.model_dump(by_alias=True, mode='json')

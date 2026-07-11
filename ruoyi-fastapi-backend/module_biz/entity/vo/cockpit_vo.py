@@ -96,7 +96,12 @@ class CockpitOverviewModel(CockpitBaseModel):
     """驾驶舱 GET /biz/cockpit/overview 完整返回结构"""
 
     kpi: CockpitKpiModel = Field(default_factory=CockpitKpiModel, description='顶部 6 个 KPI')
-    trend_7d: list[Trend7dItemModel] = Field(default_factory=list, description='7 日合同趋势')
+    trend_7d: list[Trend7dItemModel] = Field(
+        default_factory=list,
+        alias='trend7d',  # 显式 alias，避免 to_camel 把 "7d" 转成 "7D"
+        serialization_alias='trend7d',
+        description='7 日合同趋势',
+    )
     status_distribution: list[StatusDistributionItemModel] = Field(
         default_factory=list, description='合同状态分布'
     )
@@ -110,6 +115,36 @@ class CockpitOverviewModel(CockpitBaseModel):
         default_factory=list, description='渠道全国地图分布（路线 A 未完成时为空）'
     )
     generated_at: str = Field(default='', description='数据生成时间 YYYY-MM-DD HH:mm:ss')
+    province: str = Field(default='', description='当前查询的省份（全国为空）')
+
+
+class AiRiskItemModel(CockpitBaseModel):
+    """AI 智能大脑 - 风险诊断条目"""
+
+    level: str = Field(..., description='风险等级 high/medium/low')
+    title: str = Field(..., description='风险标题')
+    detail: str = Field(..., description='风险详细说明')
+
+
+class AiSuggestionItemModel(CockpitBaseModel):
+    """AI 智能大脑 - 资金/运营建议条目"""
+
+    title: str = Field(..., description='建议标题')
+    detail: str = Field(..., description='建议详细说明')
+
+
+class AiDiagnoseModel(CockpitBaseModel):
+    """AI 智能大脑 - 风险雷达 + 诊断结论 + 资金建议
+
+    GET /biz/cockpit/ai-diagnose 返回结构（demo1 同款）
+    """
+
+    summary: str = Field(default='', description='一段话总结当前运营健康度')
+    risks: list[AiRiskItemModel] = Field(default_factory=list, description='风险条目')
+    suggestions: list[AiSuggestionItemModel] = Field(default_factory=list, description='运营/资金建议条目')
+    metrics: dict[str, float] = Field(default_factory=dict, description='雷达图 6 维原始数值')
+    radar_scores: list[int] = Field(default_factory=list, description='雷达图 6 维分数 0-100')
+    generated_at: str = Field(default='', description='诊断生成时间')
 
 
 # 状态码到中文的映射（cockpit 页面饼图直接拿 label 渲染）
