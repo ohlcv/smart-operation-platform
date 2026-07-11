@@ -200,7 +200,9 @@ run_local_mode() {
     charset_raw=$(LANG=C docker exec ruoyi-mysql mysql --default-character-set=utf8mb4 \
       -uroot -proot -N -B \
       -e "SHOW VARIABLES WHERE Variable_name='character_set_client'" 2>&1)
-    charset=$(echo "$charset_raw" | tail -n 1 | tr -d '[:space:]')
+    # SHOW VARIABLES 输出两列（name\tvalue），只取 value 列；避免 tr -d '[:space:]'
+    # 把 name 和 value 拼到一起造成误判（如 "character_set_clientutf8mb4"）。
+    charset=$(echo "$charset_raw" | tail -n 1 | awk -F'\t' '{print $2}')
     if [ "$charset" != "utf8mb4" ]; then
       log_error "MySQL character_set_client=[${charset}]（期望 utf8mb4）"
       log_error "完整返回值（用于诊断）："
