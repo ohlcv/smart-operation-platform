@@ -86,7 +86,17 @@ function filterAsyncRouter(asyncRouterMap, lastRouter = false, type = false) {
 function filterChildren(childrenMap, lastRouter = false) {
   var children = []
   childrenMap.forEach(el => {
-    el.path = lastRouter ? lastRouter.path + '/' + el.path : el.path
+    if (lastRouter && lastRouter.path && lastRouter.path !== '/') {
+      // RuoYi 后端 is_menu_frame 分支会把顶级菜单包成 { path: '/', children: [{path: 'biz/xxx'}] }，
+      // 此时 lastRouter.path = '/'，再拼一次 '/' 就会得到 '//biz/xxx'，vue-router 4 报警。
+      // 同时若 el.path 已是绝对路径（以 '/' 开头），也不要重复拼。
+      el.path = lastRouter.path + '/' + el.path
+    } else if (typeof el.path === 'string' && el.path.startsWith('/')) {
+      // 已是绝对路径，保持不变
+    } else if (lastRouter && lastRouter.path === '/') {
+      // lastRouter 是 '/' 包装层，子路由的 path 已是 'biz/xxx'，加前导 / 即可
+      el.path = '/' + el.path
+    }
     if (el.children && el.children.length && el.component === 'ParentView') {
       children = children.concat(filterChildren(el.children, el))
     } else {

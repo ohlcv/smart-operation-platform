@@ -382,22 +382,18 @@ class LoginService:
                 router.redirect = 'noRedirect'
                 router.children = cls.__generate_user_router_menu(c_menus)
             elif RouterUtil.is_menu_frame(permission):
-                router.meta = None
-                children_list: list[RouterModel] = []
-                children = RouterModel(
-                    path=permission.path,
-                    component=permission.component,
-                    name=RouterUtil.get_route_name(permission.route_name, permission.path),
-                    meta=MetaModel(
-                        title=permission.menu_name,
-                        icon=permission.icon,
-                        noCache=permission.is_cache == 1,
-                        link=permission.path if RouterUtil.is_http(permission.path) else None,
-                    ),
-                    query=permission.query,
+                # 兼容老 RuoYi 默认行为（顶级菜单型 component 嵌套到 children[0]）。
+                # 但 vue-router 4 不允许相同 path='/' 注册多次，必须把 cockpit 等菜单的 component 平铺到 router.component。
+                # get_router_path 已经不再把顶级菜单 path 强制改成 '/'，所以这里把 router.component 还原为菜单自身的 component。
+                router.meta = MetaModel(
+                    title=permission.menu_name,
+                    icon=permission.icon,
+                    noCache=permission.is_cache == 1,
+                    link=permission.path if RouterUtil.is_http(permission.path) else None,
                 )
-                children_list.append(children)
-                router.children = children_list
+                router.component = permission.component or router.component
+                # 取消 children 嵌套
+                router.children = None
             elif permission.parent_id == 0 and RouterUtil.is_inner_link(permission):
                 router.meta = MetaModel(title=permission.menu_name, icon=permission.icon)
                 router.path = '/'
@@ -577,9 +573,13 @@ class RouterUtil:
         # 非外链并且是一级目录（类型为目录）
         if menu.parent_id == 0 and menu.menu_type == MenuConstant.TYPE_DIR and menu.is_frame == MenuConstant.NO_FRAME:
             router_path = f'/{menu.path}'
-        # 非外链并且是一级目录（类型为菜单）
+        # 非外链并且是一级目录（类型为菜单）：RuoYi 默认会走 is_menu_frame 分支并把 router.path 改成 '/'，
+        # 但同一 process 内多个顶级菜单都会被后端包成 path='/' component='Layout' 的容器，
+        # vue-router 4 不允许相同 path 注册多次，后注册会被静默丢弃——典型表现就是 cockpit 等
+        # 后面几个顶级菜单变成「不可路由的孤儿」，前端点击白板。
+        # 这里改成：顶级菜单型的 router.path 直接用绝对路径（带前导 /），避免 path='/' 冲突。
         elif cls.is_menu_frame(menu):
-            router_path = '/'
+            router_path = f'/{menu.path}'
         return router_path
 
     @classmethod

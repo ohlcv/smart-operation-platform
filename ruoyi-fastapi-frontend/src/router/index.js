@@ -211,6 +211,7 @@ export const dynamicRoutes = [
   {
     path: '/cockpit',
     component: Layout,
+    redirect: '/cockpit/index',
     permissions: ['biz:cockpit:view'],
     children: [
       {
