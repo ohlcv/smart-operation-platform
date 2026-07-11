@@ -170,7 +170,9 @@ run_local_mode() {
         --name "$name" \
         --network ruoyi-network \
         --restart unless-stopped \
-        $([ "$name" = "ruoyi-mysql" ] && echo "-e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=ruoyi-fastapi -p 13306:3306 -v $PROJECT_ROOT/ruoyi-fastapi-backend/sql/ruoyi-fastapi.sql:/docker-entrypoint-initdb.d/ruoyi-fastapi.sql" || echo "-p 16379:6379") \
+        $([ "$name" = "ruoyi-mysql" ] && echo "-e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=ruoyi-fastapi -p 13306:3306 \
+          -v $PROJECT_ROOT/ruoyi-fastapi-backend/sql/ruoyi-fastapi.sql:/docker-entrypoint-initdb.d/ruoyi-fastapi.sql \
+          -v $PROJECT_ROOT/mysql-conf/charset.cnf:/etc/mysql/conf.d/charset.cnf:ro" || echo "-p 16379:6379") \
         $([ "$name" = "ruoyi-mysql" ] && echo "mysql:8.0" || echo "redis:latest")
     fi
   done
@@ -191,6 +193,19 @@ run_local_mode() {
   done
   sleep 2
   log_info "  MySQL + Redis 就绪 ✓"
+
+  # ---- MySQL 字符集自检（防双重 UTF-8 编码问题） ----
+  if is_container_running "ruoyi-mysql"; then
+    local charset
+    charset=$(docker exec ruoyi-mysql mysql -uroot -proot -N -B \
+      -e "SHOW VARIABLES WHERE Variable_name='character_set_client'" 2>/dev/null | awk '{print $2}')
+    if [ "$charset" != "utf8mb4" ]; then
+      log_error "MySQL character_set_client=$charset（期望 utf8mb4）"
+      log_error "可能原因：mysql-conf/charset.cnf 未挂载或被忽略"
+      exit 1
+    fi
+    log_info "  MySQL 字符集自检: character_set_client=utf8mb4 ✓"
+  fi
 
   # ---- 启动后端 ----
   log_step "2/3 - 启动后端..."
@@ -228,7 +243,8 @@ run_local_mode() {
   ruoyi app doctor --env=dev --use-merged || log_warn "  检查有警告，继续启动..."
 
   log_info "  启动后端 (uvicorn)..."
-  nohup uvicorn app:app \
+  nohup env PYTHONIOENCODING=utf-8 LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 \
+    uvicorn app:app \
     --host 0.0.0.0 \
     --port 9099 \
     --reload \
@@ -249,7 +265,8 @@ run_local_mode() {
     _stop_by_port 9099
     sleep 2
     log_info "  重试后端启动..."
-    nohup uvicorn app:app \
+    nohup env PYTHONIOENCODING=utf-8 LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 \
+      uvicorn app:app \
       --host 0.0.0.0 \
       --port 9099 \
       --reload \
