@@ -108,3 +108,90 @@ class ApprovalActionEnum(str, Enum):
 
     APPROVE = 'approve'
     REJECT = 'reject'
+
+
+class ChannelCategoryEnum(str, Enum):
+    """渠道分类（与 sys_dict_data dict_type='channel_type' 的 dict_value 一致）。
+
+    字典已登记：meituan=美团到综 / douyin=抖音生活服务 / ctrip=携程商旅 / tongcheng=同程旅行。
+    ADR D09：先做 CSV 导入兜底。
+    """
+
+    MEITUAN = 'meituan'
+    DOUYIN = 'douyin'
+    CTRIP = 'ctrip'
+    TONGCHENG = 'tongcheng'
+
+    @classmethod
+    def label(cls, c: str | None) -> str:
+        return {
+            'meituan': '美团到综',
+            'douyin': '抖音生活服务',
+            'ctrip': '携程商旅',
+            'tongcheng': '同程旅行',
+        }.get(c or '', c or '')
+
+
+class InvoiceStatusEnum(str, Enum):
+    """发票状态机（ADR D11：台账管理，不做真实开票对接）。"""
+
+    PENDING = 'pending'   # 待开
+    ISSUED = 'issued'     # 已开
+    VOID = 'void'         # 已作废
+
+    @classmethod
+    def label(cls, s: str | None) -> str:
+        return {
+            'pending': '待开',
+            'issued': '已开',
+            'void': '已作废',
+        }.get(s or '', s or '')
+
+
+class FinanceEntryTypeEnum(str, Enum):
+    """财务流水类型。"""
+
+    PAYABLE = 'payable'       # 应付（我们付给别人）
+    RECEIVABLE = 'receivable' # 应收（别人付给我们）
+
+    @classmethod
+    def label(cls, t: str | None) -> str:
+        return {
+            'payable': '应付',
+            'receivable': '应收',
+        }.get(t or '', t or '')
+
+
+class OperationPeriodEnum(str, Enum):
+    """经营数据周期类型。"""
+
+    MONTH = 'month'
+    QUARTER = 'quarter'
+    YEAR = 'year'
+
+    @classmethod
+    def label(cls, p: str | None) -> str:
+        return {
+            'month': '月报',
+            'quarter': '季报',
+            'year': '年报',
+        }.get(p or '', p or '')
+
+
+class OperationBusinessLineEnum(str, Enum):
+    """经营数据业务线（与 sys_dict_data dict_type='business_line' 一致）。
+
+    字典已登记：scenic=景区发行 / digital=数字出版 / logistics=物流仓储。
+    """
+
+    SCENIC = 'scenic'
+    DIGITAL = 'digital'
+    LOGISTICS = 'logistics'
+
+    @classmethod
+    def label(cls, b: str | None) -> str:
+        return {
+            'scenic': '景区发行',
+            'digital': '数字出版',
+            'logistics': '物流仓储',
+        }.get(b or '', b or '')

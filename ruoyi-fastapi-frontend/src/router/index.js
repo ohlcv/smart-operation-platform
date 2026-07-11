@@ -169,10 +169,59 @@ export const dynamicRoutes = [
         component: () => import('@/views/biz/approval/index.vue'),
         name: 'BizApproval',
         meta: { title: '审批中心', icon: 'check', noCache: false }
+      },
+      {
+        path: 'contract',
+        component: () => import('@/views/biz/contract/index.vue'),
+        name: 'BizContract',
+        meta: { title: '合同管理', icon: 'document', noCache: false }
+      },
+      {
+        path: 'customer',
+        component: () => import('@/views/biz/customer/index.vue'),
+        name: 'BizCustomer',
+        meta: { title: '客户档案', icon: 'user', noCache: false }
+      },
+      {
+        path: 'channel',
+        component: () => import('@/views/biz/channel/index.vue'),
+        name: 'BizChannel',
+        meta: { title: '渠道管理', icon: 'share', noCache: false }
+      },
+      {
+        path: 'invoice',
+        component: () => import('@/views/biz/invoice/index.vue'),
+        name: 'BizInvoice',
+        meta: { title: '发票管理', icon: 'ticket', noCache: false }
+      },
+      {
+        path: 'finance',
+        component: () => import('@/views/biz/finance/index.vue'),
+        name: 'BizFinance',
+        meta: { title: '财务管理', icon: 'money', noCache: false }
+      },
+      {
+        path: 'operation',
+        component: () => import('@/views/biz/operation/index.vue'),
+        name: 'BizOperation',
+        meta: { title: '经营数据', icon: 'data-line', noCache: false }
+      }
+    ]
+  },
+  {
+    path: '/cockpit',
+    component: Layout,
+    permissions: ['biz:cockpit:view'],
+    children: [
+      {
+        path: 'index',
+        component: () => import('@/views/biz/cockpit/index.vue'),
+        name: 'BizCockpit',
+        meta: { title: '战略驾驶舱', icon: 'pie-chart', noCache: false }
       }
     ]
   }
-]
+] // eslint-disable-line
 
 const router = createRouter({
   history: createWebHistory(),

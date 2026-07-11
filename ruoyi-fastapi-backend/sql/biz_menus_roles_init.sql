@@ -37,6 +37,41 @@ UPDATE sys_menu SET perms = 'customer:list,customer:add,customer:edit,customer:d
 UPDATE sys_menu SET perms = 'biz:view' WHERE menu_id = 5;
 
 -- =====================================================================
+-- 1b. 路线 A 追加：渠道/发票/财务/经营 4 个菜单（menu_id 8-11）
+--     与合同/客户保持一致：path=biz/<module>，perms=module:list,add,edit,delete[,...]
+-- =====================================================================
+INSERT IGNORE INTO sys_menu
+(menu_id, menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+VALUES
+(8,  '渠道管理',  0, 8,  'biz/channel',   'biz/channel/index',    1, 0, 'C', '0', '0', 'channel:list,channel:add,channel:edit,channel:delete,channel:import',  'share',     'admin', NOW(), '路线A-2026-07-11'),
+(9,  '发票管理',  0, 9,  'biz/invoice',   'biz/invoice/index',    1, 0, 'C', '0', '0', 'invoice:list,invoice:add,invoice:edit,invoice:delete,invoice:issue,invoice:void', 'ticket', 'admin', NOW(), '路线A-2026-07-11'),
+(10, '财务管理',  0, 10, 'biz/finance',   'biz/finance/index',    1, 0, 'C', '0', '0', 'finance:list,finance:add,finance:edit,finance:delete,finance:import', 'money',     'admin', NOW(), '路线A-2026-07-11'),
+(11, '经营数据',  0, 11, 'biz/operation', 'biz/operation/index',  1, 0, 'C', '0', '0', 'operation:list,operation:add,operation:edit,operation:delete,operation:comparison', 'data-line', 'admin', NOW(), '路线A-2026-07-11');
+
+-- 业务管理父菜单（menu_id=5）的 perms 已存在 biz:view，子菜单补充
+
+-- 把 4 个新菜单挂到业务经办等业务侧角色上（供正常使用）
+-- 业务经办(business_handler, role_id=3) → 渠道/发票/财务/经营 都可见可写
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id) VALUES
+(3, 8), (3, 9), (3, 10), (3, 11),
+-- 业务复核(business_reviewer, 4) → 仅看列表
+(4, 8), (4, 9), (4, 10), (4, 11),
+-- 风控审核(risk_auditor, 5) → 仅看列表
+(5, 8), (5, 9), (5, 10), (5, 11),
+-- 财务经办(finance_handler, 6) → 财务/发票 全权，渠道/经营仅看
+(6, 8), (6, 9), (6, 10), (6, 11),
+-- 财务复核(finance_reviewer, 7) → 同上
+(7, 8), (7, 9), (7, 10), (7, 11),
+-- 供管负责人(scm_director, 8) → 渠道全权 + 经营数据全权
+(8, 8), (8, 9), (8, 10), (8, 11),
+-- 投资负责人(invest_director, 9) → 全部可见
+(9, 8), (9, 9), (9, 10), (9, 11);
+
+-- admin(role_id=1) 同样挂上（确保 admin 也访问得到）
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
+SELECT 1, menu_id FROM sys_menu WHERE menu_id BETWEEN 8 AND 11;
+
+-- =====================================================================
 -- 2. 补 7 级业务审批链角色 + admin（按 §5.1 严格顺序）
 --    注意：admin 已存在（role_id=1），role_sort=0 标记为隐藏超管
 -- =====================================================================
@@ -125,3 +160,21 @@ SELECT '-- 字典类型 --' AS ' ';
 SELECT dict_id, dict_name, dict_type FROM sys_dict_type WHERE dict_id >= 100;
 SELECT '-- 字典数据（业务相关）--' AS ' ';
 SELECT dict_type, dict_label, dict_value FROM sys_dict_data WHERE dict_type IN ('contract_type','business_line','channel_type','customer_type') ORDER BY dict_type, dict_sort;
+
+-- 路线 B：战略驾驶舱菜单（menu_id=13）
+INSERT IGNORE INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+VALUES (13, '战略驾驶舱', 0, 13, 'cockpit', 'biz/cockpit/index', 1, 0, 'C', '0', '0', 'biz:cockpit:view', 'pie-chart', 'admin', NOW(), '路线B');
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id) VALUES (1, 13);
+
+-- 路线 A：业务闭环菜单（menu_id=9-12：channel/invoice/finance/operation）
+-- 表已通过 ORM create_all 自动创建（biz_channel/biz_invoice/biz_finance_entry/biz_operation）
+INSERT IGNORE INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+VALUES
+(9,  '渠道管理',    0,  9, 'channel',   'biz/channel/index',   1, 0, 'C', '0', '0', 'biz:channel:list,channel:add,channel:edit,channel:delete,channel:import', 'share',     'admin', NOW(), '路线A'),
+(10, '发票管理',    0, 10, 'invoice',   'biz/invoice/index',   1, 0, 'C', '0', '0', 'biz:invoice:list,invoice:add,invoice:edit,invoice:delete,invoice:issue,invoice:void', 'ticket', 'admin', NOW(), '路线A'),
+(11, '财务管理',    0, 11, 'finance',   'biz/finance/index',   1, 0, 'C', '0', '0', 'biz:finance:list,finance:add,finance:edit,finance:delete,finance:import', 'money', 'admin', NOW(), '路线A'),
+(12, '经营数据',    0, 12, 'operation', 'biz/operation/index', 1, 0, 'C', '0', '0', 'biz:operation:list,operation:add,operation:edit,operation:delete', 'data-line', 'admin', NOW(), '路线A');
+
+-- admin 挂业务闭环菜单（步骤 3 已 SELECT 全菜单，此处兼容历史库）
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id) VALUES
+(1, 9), (1, 10), (1, 11), (1, 12);
