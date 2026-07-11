@@ -302,7 +302,8 @@ class ContractService:
         )
         await ApprovalDAO.insert(db, approval)
         await db.commit()
-        return {'status': ContractStatusEnum.PENDING.value, 'current_step': next_step}
+        # ADR D24：返回值使用 camelCase key（由 controller JSONResponse 输出）
+        return {'status': ContractStatusEnum.PENDING.value, 'currentStep': next_step}
 
     @staticmethod
     async def check_no_services(
