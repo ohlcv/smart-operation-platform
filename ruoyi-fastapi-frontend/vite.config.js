@@ -45,10 +45,39 @@ export default defineConfig(({ mode, command }) => {
       open: true,
       proxy: {
         // https://cn.vitejs.dev/config/#server-proxy
+        // 反向代理后端 RESTful API
         '/dev-api': {
           target: 'http://127.0.0.1:9099',
           changeOrigin: true,
           rewrite: (p) => p.replace(/^\/dev-api/, '')
+        },
+        // 反向代理后端 API 文档相关路径（vite.config.js 详解见
+        // docs/04-开发/DEBUG/swagger-ui-relative-openapi-yaml-exception-2026-07-11.md）
+        //
+        // 为什么需要单独代理这些路径：
+        //   swagger UI / redoc HTML 内部声明 openapiUrl='/openapi.json'（相对路径），
+        //   iframe src='/dev-api/proxy-docs' 内浏览器解析该相对 URL 时，根 host 仍是
+        //   前端 dev server，无法被 '/dev-api' 模式匹配 → 走 SPA fallback 拿到
+        //   index.html，被 swagger-ui 当 openapi JSON 解析 → YAMLException。
+        //   故把后端 docs 路由直接挂在 '/dev-api' 之外，由 Vite 原样转发（rewrite 保持原路径）：
+        '/proxy-docs': {
+          target: 'http://127.0.0.1:9099',
+          changeOrigin: true
+        },
+        '/proxy-openapi.json': {
+          target: 'http://127.0.0.1:9099',
+          changeOrigin: true
+        },
+        '/proxy-redoc': {
+          target: 'http://127.0.0.1:9099',
+          changeOrigin: true
+        },
+        // swagger/redoc HTML 内部使用相对路径 '/openapi.json' 加载 schema，
+        // iframe 内浏览器把它解析为前端 host 的根路径 '/openapi.json'，
+        // 因此需要把 '/openapi.json' 也代理到后端，否则会走 SPA fallback 返回 index.html。
+        '/openapi.json': {
+          target: 'http://127.0.0.1:9099',
+          changeOrigin: true
         }
       }
     },
