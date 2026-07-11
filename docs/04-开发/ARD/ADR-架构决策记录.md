@@ -31,7 +31,7 @@
 | D26 | 注解层 PEP 563 forward ref 兼容性 | 凡通过 `inspect.signature(func).parameters` 解析参数类型注解的工具函数（@Log、参数名提取等），必须用 `typing.get_type_hints(func)` 解析 forward ref 后再做类型匹配；controller 启用 `from __future__ import annotations` 时注解会是字符串，原生比较会失败 | ✅ 已确认 |
 | D27 | 前端顶级路由必须 redirect + 侧边栏绝对路径短路 | 顶层父路由（含 `/biz`、`/cockpit` 等独立顶级路由）必须配置 `redirect` 到第一个子路由；侧边栏 `SidebarItem.resolvePath` 必须短路以 `/` 开头的 routePath，避免与空 basePath 拼出 `//xxx` | ✅ 已确认 |
 | D28 | 路线 C 战略驾驶舱升级范围 | Pydantic 模型统一采用别名显式声明（`Field(alias='xx', serialization_alias='xx')`）优先于 `alias_generator=to_camel`，避免纯数字+字母连写的边界 case 把字段转成「首字母大写」；具体场景：`trend_7d` → 显式 alias `trend7d` | ✅ 已确认 |
-| D29 | 战略驾驶舱大屏形态（路线 C） | 驾驶舱呈现两种形态：① **工作台入口** `/cockpit/index`（嵌 Layout，普通业务页，6 KPI 可跳转 + AI 卡片）；② **真·大屏** `/cockpit/dashboard`（嵌 Layout，三栏分栏 + 头部 + 物流飞线 + 审批跑马灯 + AI 雷达 + 省份联动）；③ **全屏投放** `/cockpit/screen`（hidden 路由，自动 requestFullscreen，Esc 退）；中部地图中枢 hub = 北京；省份联动后端字段为 `province`（`biz_contract.province` 由 `biz_customer.province` 派生） | ✅ 已确认 |
+| D29 | 战略驾驶舱大屏形态（路线 C） | 驾驶舱呈现**三形态**：① **工作台入口** `/cockpit/index`（嵌 Layout，普通业务页，6 KPI 可跳转 + AI 卡片）；② **真·大屏** `/cockpit/dashboard`（嵌 Layout，三栏分栏 + 头部 + 物流飞线 + 审批跑马灯 + AI 雷达 + 省份联动）；③ **全屏投放** `/cockpit/screen`（hidden 路由，自动 requestFullscreen，Esc 退）；中部地图中枢 hub = 北京；省份联动后端字段为 `province`（`biz_contract.province` 由 `biz_customer.province` 派生） | ✅ 已确认 |
 
 ---
 

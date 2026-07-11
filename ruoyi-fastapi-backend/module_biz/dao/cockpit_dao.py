@@ -133,9 +133,10 @@ class CockpitDAO:
     # ---------------- 7 日趋势 ----------------
 
     @staticmethod
-    async def trend_7d(db: AsyncSession) -> list[Trend7dItemModel]:
+    async def trend_7d(db: AsyncSession, province: str = '') -> list[Trend7dItemModel]:
         """近 7 天（含今日）每日新增合同数 + 当日通过合同数。
 
+        province 非空时按省份过滤（v3.3 路线 C 省份联动）。
         通过：用 biz_approval.action='approve' 同表 join；为避免 join 重复，
         这里简化：取每个状态为 approved 的合同的 update_time 分组。
         """
@@ -144,23 +145,24 @@ class CockpitDAO:
         start_dt = datetime.combine(start, datetime.min.time())
 
         # 各日合同新增数
+        new_q = [BizContract.create_time >= start_dt]
+        if province:
+            new_q.append(BizContract.province == province)
         new_stmt = (
             select(func.date(BizContract.create_time).label('d'), func.count(BizContract.id))
-            .where(BizContract.create_time >= start_dt)
+            .where(*new_q)
             .group_by(func.date(BizContract.create_time))
         )
         new_rows = (await db.execute(new_stmt)).all()
         new_map: dict[str, int] = {str(row[0]): int(row[1]) for row in new_rows if row[0]}
 
         # 各日已通过合同数（status=approved 的 update_time 分组）
+        approved_q = [BizContract.status == 'approved', BizContract.update_time >= start_dt]
+        if province:
+            approved_q.append(BizContract.province == province)
         approved_stmt = (
             select(func.date(BizContract.update_time).label('d'), func.count(BizContract.id))
-            .where(
-                and_(
-                    BizContract.status == 'approved',
-                    BizContract.update_time >= start_dt,
-                )
-            )
+            .where(*approved_q)
             .group_by(func.date(BizContract.update_time))
         )
         approved_rows = (await db.execute(approved_stmt)).all()

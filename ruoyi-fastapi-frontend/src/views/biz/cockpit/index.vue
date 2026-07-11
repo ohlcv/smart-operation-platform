@@ -79,7 +79,8 @@
             AI 智能大脑
             <el-button
               v-if="ai.summary"
-              type="text"
+              type="primary"
+              link
               size="small"
               @click="gotoDashboard"
             >
