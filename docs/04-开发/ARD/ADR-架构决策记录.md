@@ -61,6 +61,10 @@
 - `sys_user.is_superuser = True` 时，跳过审批角色校验
 - 前端菜单权限：admin 可见全部菜单，但不显示在审批角色列表中
 
+**约束补充（2026-07-11）**：`sys_role.role_sort` 取值规范 —— `0` = 隐藏超管（admin）、`1-7` = 7 级业务审批链（与 step 一一对应）、`>7` 或 `NULL` = 非审批业务角色（如 `common`，约定用 `99`）。任何审批人匹配逻辑必须先排除 `role_sort NOT IN (1..7)`，再判断 `role_sort == current_step + 1`。
+
+**冲突历史**：RuoYi 原生 `ruoyi-fastapi.sql` 第 126 行默认 admin `role_sort=1`、common `role_sort=2`，分别与 `business_handler`（sort=1）、`business_reviewer`（sort=2）冲突，导致任何拥有 admin 或 common 角色的用户在「待我审批」判断时会被误识别为业务经办/复核。已在 `biz_menus_roles_init.sql` §0 节修正（admin→0、common→99），同步更新本决策的取值规范条款。
+
 ---
 
 ### D03：审批链状态语义

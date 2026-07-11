@@ -9,10 +9,19 @@
 --   3. sys_role_menu 给 admin(role_id=1) 挂全部菜单
 --   4. biz 菜单补 perms 字段（contract:* / customer:* / approval:* / signature:*）
 --   5. sys_user.role_sort 字段暂缺，本脚本先按现有 sys_role 表结构补齐
+--   6. 修正 admin / common 的 role_sort（D02 违规修复：admin 1→0, common 2→99）
 -- =====================================================================
 
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
+
+-- =====================================================================
+-- 0. 修正 admin / common 的 role_sort（修复 ADR D02 违规）
+--    设计文档：role_sort=0=隐藏超管，1-7=7 级业务审批链，>7=非审批角色
+--    RuoYi 默认 admin sort=1 与业务经办 sort=1 冲突；common sort=2 与业务复核 sort=2 冲突
+-- =====================================================================
+UPDATE sys_role SET role_sort = 0  WHERE role_id = 1;
+UPDATE sys_role SET role_sort = 99 WHERE role_id = 2;
 
 -- =====================================================================
 -- 1. 修正 biz 菜单 path 拼写（path 必须包含父级路径）
