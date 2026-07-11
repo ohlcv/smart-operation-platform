@@ -69,7 +69,7 @@ INSERT IGNORE INTO sys_role_menu (role_id, menu_id) VALUES
 
 -- admin(role_id=1) 同样挂上（确保 admin 也访问得到）
 INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
-SELECT 1, menu_id FROM sys_menu WHERE menu_id BETWEEN 8 AND 11;
+SELECT 1, menu_id FROM sys_menu WHERE menu_id BETWEEN 9 AND 12;
 
 -- =====================================================================
 -- 2. 补 7 级业务审批链角色 + admin（按 §5.1 严格顺序）
@@ -138,8 +138,6 @@ VALUES
 (103, 3, '旅行社',   'agency',  'customer_type', 'N', '0', 'admin', NOW(), '旅行社客户'),
 (103, 4, '出版社',   'publish', 'customer_type', 'N', '0', 'admin', NOW(), '出版社客户');
 
-SET FOREIGN_KEY_CHECKS = 1;
-
 -- =====================================================================
 -- 验证（执行完后查看）
 -- =====================================================================
@@ -163,18 +161,62 @@ SELECT dict_type, dict_label, dict_value FROM sys_dict_data WHERE dict_type IN (
 
 -- 路线 B：战略驾驶舱菜单（menu_id=13）
 INSERT IGNORE INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, remark)
-VALUES (13, '战略驾驶舱', 0, 13, 'cockpit', 'biz/cockpit/index', 1, 0, 'C', '0', '0', 'biz:cockpit:view', 'pie-chart', 'admin', NOW(), '路线B');
+VALUES (13, '战略驾驶舱', 0, 13, '/cockpit', 'biz/cockpit/index', 1, 0, 'C', '0', '0', 'biz:cockpit:view', 'pie-chart', 'admin', NOW(), '路线B');
 INSERT IGNORE INTO sys_role_menu (role_id, menu_id) VALUES (1, 13);
 
--- 路线 A：业务闭环菜单（menu_id=9-12：channel/invoice/finance/operation）
--- 表已通过 ORM create_all 自动创建（biz_channel/biz_invoice/biz_finance_entry/biz_operation）
+-- 路线 A：业务闭环菜单（menu_id 12, 14, 15, 16：让出 13 给路线 B 战略驾驶舱）
+-- DB 中现状：menu_id 8=审批(保留)、9-11 已被旧版 INSERT IGNORE 错位占用
+-- path 写完整路径（含父级 biz/ 前缀），与 contract/customer/approval 一致（v2.6 约定）
+-- perms 必须与 controller UserInterfaceAuthDependency 中的标识一致（无 biz: 前缀）
+
+-- 1) 清理早期错位的「路线 A 菜单」占位（menu_id 9-11 中错位的发票/财务/经营）
+DELETE FROM sys_role_menu WHERE menu_id BETWEEN 9 AND 11;
+DELETE FROM sys_menu WHERE menu_id BETWEEN 9 AND 11;
+
+-- 2) 用 12, 14, 15, 16（让 13 给路线 B）
 INSERT IGNORE INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, remark)
 VALUES
-(9,  '渠道管理',    0,  9, 'channel',   'biz/channel/index',   1, 0, 'C', '0', '0', 'biz:channel:list,channel:add,channel:edit,channel:delete,channel:import', 'share',     'admin', NOW(), '路线A'),
-(10, '发票管理',    0, 10, 'invoice',   'biz/invoice/index',   1, 0, 'C', '0', '0', 'biz:invoice:list,invoice:add,invoice:edit,invoice:delete,invoice:issue,invoice:void', 'ticket', 'admin', NOW(), '路线A'),
-(11, '财务管理',    0, 11, 'finance',   'biz/finance/index',   1, 0, 'C', '0', '0', 'biz:finance:list,finance:add,finance:edit,finance:delete,finance:import', 'money', 'admin', NOW(), '路线A'),
-(12, '经营数据',    0, 12, 'operation', 'biz/operation/index', 1, 0, 'C', '0', '0', 'biz:operation:list,operation:add,operation:edit,operation:delete', 'data-line', 'admin', NOW(), '路线A');
+(12, '渠道管理', 5,  9, 'biz/channel',   'biz/channel/index',   1, 0, 'C', '0', '0', 'channel:list,channel:add,channel:edit,channel:delete,channel:import',          'share',     'admin', NOW(), '路线A'),
+(14, '发票管理', 5, 10, 'biz/invoice',   'biz/invoice/index',   1, 0, 'C', '0', '0', 'invoice:list,invoice:add,invoice:edit,invoice:delete,invoice:issue,invoice:void', 'ticket',    'admin', NOW(), '路线A'),
+(15, '财务管理', 5, 11, 'biz/finance',   'biz/finance/index',   1, 0, 'C', '0', '0', 'finance:list,finance:add,finance:edit,finance:delete,finance:import',          'money',     'admin', NOW(), '路线A'),
+(16, '经营数据', 5, 12, 'biz/operation', 'biz/operation/index', 1, 0, 'C', '0', '0', 'operation:list,operation:add,operation:edit,operation:delete,operation:comparison','data-line', 'admin', NOW(), '路线A');
 
--- admin 挂业务闭环菜单（步骤 3 已 SELECT 全菜单，此处兼容历史库）
+-- 3) 7 个业务审批角色 + admin 都挂上路线 A 4 个菜单（与 contract/customer 风格一致：所有业务角色可见）
+-- admin(role_id=1) + 业务经办(3) + 业务复核(4) + 风控审核(5) + 财务经办(6) + 财务复核(7) + 供管(8) + 投资(9)
 INSERT IGNORE INTO sys_role_menu (role_id, menu_id) VALUES
-(1, 9), (1, 10), (1, 11), (1, 12);
+(1, 12), (1, 14), (1, 15), (1, 16),
+(3, 12), (3, 14), (3, 15), (3, 16),
+(4, 12), (4, 14), (4, 15), (4, 16),
+(5, 12), (5, 14), (5, 15), (5, 16),
+(6, 12), (6, 14), (6, 15), (6, 16),
+(7, 12), (7, 14), (7, 15), (7, 16),
+(8, 12), (8, 14), (8, 15), (8, 16),
+(9, 12), (9, 14), (9, 15), (9, 16);
+
+-- 4) 兼容历史库：如果之前已执行过没挂角色的版本，补挂
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
+SELECT r.role_id, m.menu_id
+FROM sys_role r, sys_menu m
+WHERE m.menu_id IN (12, 14, 15, 16)
+  AND r.role_id IN (1, 3, 4, 5, 6, 7, 8, 9)
+  AND NOT EXISTS (SELECT 1 FROM sys_role_menu rm WHERE rm.role_id = r.role_id AND rm.menu_id = m.menu_id);
+
+-- 5) 修正早期 INSERT 留下的错误 perms（去掉 biz: 前缀；path 已是正确的 biz/ 形式，无需改）
+UPDATE sys_menu SET perms = 'channel:list,channel:add,channel:edit,channel:delete,channel:import' WHERE menu_id = 12;
+UPDATE sys_menu SET perms = 'invoice:list,invoice:add,invoice:edit,invoice:delete,invoice:issue,invoice:void' WHERE menu_id = 14;
+UPDATE sys_menu SET perms = 'finance:list,finance:add,finance:edit,finance:delete,finance:import' WHERE menu_id = 15;
+UPDATE sys_menu SET perms = 'operation:list,operation:add,operation:edit,operation:delete,operation:comparison' WHERE menu_id = 16;
+
+-- 6) v3.1 hotfix（脚本 debug_cockpit.py 实测发现）：路线 A 4 菜单 path 必须含父级 'biz/'
+--    否则后端 get_router_path 返回 'channel'/'invoice'/... 前端解析为顶级路由 path='/'，
+--    4 个菜单全挂在 '/' 下冲突，sidebar 渲染异常或点击跳错。
+UPDATE sys_menu SET path = 'biz/channel'   WHERE menu_id = 12 AND path NOT LIKE 'biz/%';
+UPDATE sys_menu SET path = 'biz/invoice'   WHERE menu_id = 14 AND path NOT LIKE 'biz/%';
+UPDATE sys_menu SET path = 'biz/finance'   WHERE menu_id = 15 AND path NOT LIKE 'biz/%';
+UPDATE sys_menu SET path = 'biz/operation' WHERE menu_id = 16 AND path NOT LIKE 'biz/%';
+
+-- 7) v3.1 hotfix（脚本 debug_cockpit.py 实测发现）：cockpit 顶级菜单 path 必须加前导 '/'
+--    否则前端路由 path='/cockpit' 不匹配，vue-router 找不到路由，cockpit 空白。
+UPDATE sys_menu SET path = '/cockpit' WHERE menu_id = 13 AND path NOT LIKE '/%';
+
+SET FOREIGN_KEY_CHECKS = 1;
