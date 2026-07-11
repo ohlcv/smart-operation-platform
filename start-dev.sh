@@ -197,7 +197,8 @@ run_local_mode() {
   if is_container_running "ruoyi-mysql"; then
     local charset
     charset=$(docker exec ruoyi-mysql mysql -uroot -proot -N -B \
-      -e "SHOW VARIABLES WHERE Variable_name='character_set_client'" 2>/dev/null | grep character_set_client | cut -f2 -d'	')
+      -e "SHOW VARIABLES WHERE Variable_name='character_set_client'" 2>/dev/null | \
+      python3 -c "import sys; print(sys.stdin.read().split('\t')[1].strip())")
     if [ "$charset" != "utf8mb4" ]; then
       log_error "MySQL character_set_client=$charset（期望 utf8mb4）"
       log_error "可能原因：MySQL 未加载 utf8mb4 参数，请检查 docker run / docker-compose.my.yml"
