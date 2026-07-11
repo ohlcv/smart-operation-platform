@@ -6,7 +6,7 @@ from copy import deepcopy
 from datetime import datetime
 from enum import Enum
 from functools import wraps
-from typing import Any, Literal, TypeVar
+from typing import Any, Literal, TypeVar, get_type_hints
 
 import httpx
 from async_lru import alru_cache
@@ -1042,14 +1042,17 @@ def get_function_parameters_name_by_type(func: Callable, param_type: Any) -> lis
     :param arg_type: 参数类型
     :return: 函数指定类型的参数名称
     """
-    # 获取函数的参数信息
-    parameters = inspect.signature(func).parameters
+    # 用 get_type_hints 解析 forward ref（from __future__ import annotations 会让注解变成字符串）
+    try:
+        resolved_hints = get_type_hints(func)
+    except Exception:
+        resolved_hints = {}
     # 找到指定类型的参数名称
     parameters_name_list = []
     # 遍历所有参数
-    for name, param in parameters.items():
+    for name, param in inspect.signature(func).parameters.items():
         # 处理参数注解
-        annotation = param.annotation
+        annotation = resolved_hints.get(name, param.annotation)
         # 检查参数类型是否匹配
         # 1. 直接匹配
         # 2. 检查是否为Annotated类型（通过类型名称判断）

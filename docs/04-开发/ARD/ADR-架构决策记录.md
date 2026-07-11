@@ -1,6 +1,6 @@
 # 架构决策记录（ADR）
 
-> 文档版本：v1.2  
+> 文档版本：v1.3  
 > 编写日期：2026-07-11  
 > 文档定位：记录项目关键架构决策、业务决策及其 rationale；作为后续开发、评审、新人 onboarding 的依据。
 
@@ -28,6 +28,8 @@
 | D23 | 前端登录页文件组织 | 科技风登录页用 `login/index.vue` 目录结构，替换 RuoYi 原生 `login.vue` 单文件 | ✅ 已确认 |
 | D24 | API 字段命名一致性 | JSON 请求/响应字段一律 camelCase，全站强约束；Python 用 snake_case 由 Pydantic `alias_generator=to_camel` 自动序列化 | ✅ 已确认 |
 | D25 | 前端样式主题适配规范 | 所有 `.vue` 页面/组件的样式中，色值（背景/文字/边框）必须通过 Element Plus CSS 变量（`var(--el-*)`）引用；禁止硬编码 EP 调色板色值；`html.dark` 切换时自动跟随；业务语义色（警告/金额/驳回等）允许硬编码但需显式注明 | ✅ 已确认 |
+| D26 | 注解层 PEP 563 forward ref 兼容性 | 凡通过 `inspect.signature(func).parameters` 解析参数类型注解的工具函数（@Log、参数名提取等），必须用 `typing.get_type_hints(func)` 解析 forward ref 后再做类型匹配；controller 启用 `from __future__ import annotations` 时注解会是字符串，原生比较会失败 | ✅ 已确认 |
+| D27 | 前端顶级路由必须 redirect + 侧边栏绝对路径短路 | 顶层父路由（含 `/biz`、`/cockpit` 等独立顶级路由）必须配置 `redirect` 到第一个子路由；侧边栏 `SidebarItem.resolvePath` 必须短路以 `/` 开头的 routePath，避免与空 basePath 拼出 `//xxx` | ✅ 已确认 |
 
 ---
 
@@ -478,6 +480,126 @@ rg -n '#[0-9a-fA-F]{3,6}' src/views/biz/**/*.vue \
 **关联决策**：D23（前端登录页文件组织）、D24（API 字段命名一致性）。
 
 **关联 DEBUG**：`DEBUG/approval-dark-mode-hardcoded-colors-2026-07-11.md`（2026-07-11 审批中心暗色适配修复记录，含 3 个文件 12 处替换明细）。
+
+---
+
+### D26：注解层 PEP 563 forward ref 兼容性
+
+**问题**：所有 controller（`module_biz/controller/*.py`）都启用了 `from __future__ import annotations`（PEP 563）。这把所有参数类型注解变成字符串（如 `request: Request` 在 inspect 里看到的是 `'Request'` 字符串），导致依赖 `inspect.signature(func).parameters` 解析参数类型的工具函数失效。
+
+实测症状：`common/annotation/log_annotation.py` 的 `get_function_parameters_name_by_type(func, Request)` 在所有 `@Log` 装饰的接口上拿到空列表 `[]`，下一行 `request_name_list[0]` 直接 `IndexError: list index out of range`。**所有 `@Log` 装饰的接口都受影响**——不只是 DELETE，GET/POST/PUT 等只要走 `@Log` 就崩。HTTP 实测表现为 `code=500 msg="list index out of range"`。
+
+**决策**：
+
+- 凡通过 `inspect.signature(func).parameters` 解析参数类型注解的工具函数（`@Log`、参数名提取、依赖注入元编程等），必须用 `typing.get_type_hints(func)` 先解析 forward ref，**再做**类型匹配
+- 解析失败时 fallback 到 `param.annotation` 字符串（不引入新崩溃，但等于原行为——属极端场景，实际未复现）
+- 适用工具：`common/annotation/log_annotation.py` 的 `get_function_parameters_name_by_type`
+
+**Rationale**：
+
+- `from __future__ import annotations` 在本项目是 PEP 563 标准做法，前向兼容 Python 3.14，对 controller 代码可读性提升显著，不能撤
+- 注解层是公共基础，被 `@Log` 这类装饰器隐式依赖；放弃 forward ref 等于放弃 `from __future__ import annotations`，代价过大
+- 解析失败时静默 fallback（`get_type_hints` 抛异常 → 退回原路径）保证工具函数不会因某个极端注解而崩；真出问题时表现为"日志少了 request 信息"而非整个接口 500
+
+**示例（修复后）**：
+
+```python
+# ruoyi-fastapi-backend/common/annotation/log_annotation.py
+def get_function_parameters_name_by_type(func: Callable, param_type: Any) -> list:
+    try:
+        resolved_hints = get_type_hints(func)  # PEP 563 兼容：先解析 forward ref
+    except Exception:
+        resolved_hints = {}
+    parameters_name_list = []
+    for name, param in inspect.signature(func).parameters.items():
+        annotation = resolved_hints.get(name, param.annotation)  # 优先用解析后的
+        if annotation == param_type or (
+            hasattr(annotation, '__class__')
+            and annotation.__class__.__name__ == '_AnnotatedAlias'
+            and annotation.__origin__ == param_type
+        ):
+            parameters_name_list.append(name)
+    return parameters_name_list
+```
+
+**影响范围**：
+
+- 修改：`common/annotation/log_annotation.py` 一处
+- 受益：所有 `@Log` 装饰的接口（路由 49 条中绝大多数），不仅是 DELETE 路径
+- 不需修改：controller 侧（保留 `from __future__ import annotations`）
+
+**关联 DEBUG**：`DEBUG/log-annotation-future-annotations-2026-07-12.md`。
+
+---
+
+### D27：前端顶级路由必须 redirect + 侧边栏绝对路径短路
+
+**问题**：vue-router 警告 `Location "//cockpit" resolved to "//cockpit". A resolved location cannot start with multiple slashes.` 在切换驾驶舱菜单时反复触发。两个独立 bug 叠加：
+
+1. **`/cockpit` 顶级路由没设 `redirect`**：访问根路径 `/cockpit` 会 404（其他顶级路由如 `/biz` 都设了 `redirect: '/biz/approval'`）。子路由 `path: 'index'` 拼出来是 `/cockpit/index`，但用户点菜单走的是 `/cockpit` 父路径。
+2. **`SidebarItem.vue` 的 `resolvePath(routePath)` 拼接 bug**：
+   ```js
+   // 旧实现（line 79-91）
+   function resolvePath(routePath, routeQuery) {
+     if (isExternal(routePath)) return routePath
+     if (isExternal(props.basePath)) return props.basePath
+     // basePath 是父路由传下来的；顶级父路由的 basePath 是空串 ''
+     return getNormalPath(props.basePath + '/' + routePath)  // '' + '/' + '/cockpit' = '//cockpit' 💥
+   }
+   ```
+   当 `routePath` 本身已是绝对路径（以 `/` 开头，如顶级父路由 `/cockpit` 自身），`basePath=''` 时拼接会得到 `//cockpit`。
+
+**决策**：
+
+- **规则 1**：所有顶层父路由（含 `/biz`、`/cockpit` 等独立顶级路由）**必须**配置 `redirect: '/<first-child>'` 指向第一个子路由
+- **规则 2**：`SidebarItem.vue` 的 `resolvePath` 必须短路以 `/` 开头的 `routePath`，避免与空 `basePath` 拼出 `//xxx`
+
+**Rationale**：
+
+- vue-router 设计上要求 path 单一 `/` 开头；双 `/` 路径在不同浏览器/代理下行为不一致（部分会被吞掉，部分会重定向到根），必须在源头避免
+- 顶级父路由无 redirect 时用户直接访问 `/cockpit` 会撞到空 Layout 组件；统一 redirect 是约定俗成的 vue-element-admin 模板风格
+- 侧边栏短路修复是**通用性修复**——任何顶级父路由（不只是 cockpit）都会遇到同类问题；不改就埋雷
+
+**修复（侧边栏）**：
+
+```vue
+<!-- ruoyi-fastapi-frontend/src/layout/components/Sidebar/SidebarItem.vue -->
+<script setup>
+function resolvePath(routePath, routeQuery) {
+  if (isExternal(routePath)) return routePath
+  if (isExternal(props.basePath)) return props.basePath
+  // 绝对路径直接返回，避免 basePath='' + '/'+ '/cockpit' 拼出 '//cockpit'
+  if (routePath.startsWith('/')) {
+    return getNormalPath(routePath)
+  }
+  if (routeQuery) {
+    let query = JSON.parse(routeQuery);
+    return { path: getNormalPath(props.basePath + '/' + routePath), query: query }
+  }
+  return getNormalPath(props.basePath + '/' + routePath)
+}
+</script>
+```
+
+**修复（cockpit 路由）**：
+
+```js
+// ruoyi-fastapi-frontend/src/router/index.js
+{
+  path: '/cockpit',
+  component: Layout,
+  redirect: '/cockpit/index',  // 补：与 /biz 的 redirect 风格一致
+  permissions: ['biz:cockpit:view'],
+  children: [
+    { path: 'index', component: () => import('@/views/biz/cockpit/index.vue'), name: 'BizCockpit', meta: { title: '战略驾驶舱', icon: 'pie-chart', noCache: false } }
+  ]
+}
+```
+
+**影响范围**：
+
+- 修改：`src/router/index.js`（cockpit 父路由补 redirect）、`src/layout/components/Sidebar/SidebarItem.vue`（resolvePath 短路）
+- 受益：所有顶级父路由（不只 cockpit），未来新增 `/xxx` 顶级路由也不会再触发 `//xxx` 警告
 
 ---
 
