@@ -5,12 +5,25 @@
 | 文档编号 | DEBUG-20260711-01                                             |
 | 类别     | 数据库 / 字符集 / 数据修复                                    |
 | 严重度   | 🔴 P0（菜单、部门、字典全部中文都显示乱码，前台不可用）      |
-| 状态     | ✅ 已修复（永久方案已落地）                                |
+| 状态     | ✅ 已修复（永久方案 A+B 双保险已落地）                    |
 | 涉及版本 | smart-operation-platform @ 2026-07-11                         |
 | 发现人   | 开发自检（前端菜单点击空菜单、无显示时发现）                  |
 | 修复人   | 开发自检                                                       |
 | 关联脚本 | [`scripts/fix_double_utf8.py`](../../../scripts/fix_double_utf8.py) |
-| 复现验证 | 2026-07-11 17:00 — `docker rm ruoyi-mysql` 后字符集再次回归，**已确认通过 mysql-conf 卷挂载修复** |
+| 复现验证 | 2026-07-11 17:00 — `docker rm ruoyi-mysql` 后字符集再次回归，**已确认通过 mysql-conf 卷挂载 + 命令行参数双保险修复** |
+
+---
+
+## 目录（Table of Contents）
+
+1. [现象（Symptoms）](#1-现象symptoms)
+2. [排查过程（Investigation）](#2-排查过程investigation)
+3. [修复（Fix）](#3-修复fix)
+4. [影响面（Impact）](#4-影响面impact)
+5. [后续改进（Follow-ups）](#5-后续改进follow-ups)
+6. [经验教训（Lessons Learned）](#6-经验教训lessons-learned)
+7. [附录（Appendix）](#7-附录appendix)
+8. [勘误（Errata）](#8-勘误errata)
 
 ---
 
@@ -19,9 +32,9 @@
 启动开发环境后访问前端：
 
 - **菜单管理** 列表中 `menu_name` 列大量显示为乱码，类似：
-  `ç³»ç»Ÿç®¡ç†`、`è‹¥ä¾å®˜ç½‘`、`ç”¨æˆ·ç®¡ç†`
+  `ç³»ç»Ÿç®¡ç†`、`è‹¥ä¾å®˜ç½‘`、`ç"¨æˆ·ç®¡ç†`
 - **部门管理** 显示 `é›†å›¢æ€»å…¬å¸`、`éƒ¨é—¨ç®¡ç†`
-- **角色管理** 显示 `è¶…çº§ç®¡ç†å‘˜`
+- **角色管理** 显示 `è¶…çº§ç®¡ç†å'˜`
 - **字典管理** 显示 `èŒå•çŠ¶æ€`
 - 切换客户端 / 切换浏览器无效
 - 后端 DEBUG 日志中 SQL 参数已经是乱码字符串（说明写入时就是错的，不是读取错）
@@ -114,11 +127,11 @@ C3A8 E280B9 C2A5 C3A4 C2BE C29D C3A5 C2AE CB9C C3A7 C2BD E28098
 
 ## 3. 修复（Fix）
 
-### 3.1 已采取的永久性修复
+### 3.1 已采取的永久性修复（方案 A+B 双保险）
 
-#### 3.1.1 数据库 server 字符集（已永久写入）
+#### 3.1.1 数据库 server 字符集配置（方案 A：cnf 卷挂载）
 
-`/etc/mysql/conf.d/charset.cnf`（容器内挂载，已存在）：
+**文件位置**：`$PROJECT_ROOT/mysql-conf/charset.cnf`（项目根目录，随 Git 版本控制）
 
 ```ini
 [client]
@@ -131,21 +144,36 @@ collation-server = utf8mb4_0900_ai_ci
 init-connect = "SET NAMES utf8mb4"
 ```
 
-重启后验证：
+挂载到容器内路径：`/etc/mysql/conf.d/charset.cnf:ro`
 
-```sql
-SHOW VARIABLES WHERE Variable_name LIKE 'character_set%' OR Variable_name LIKE 'collation%';
+#### 3.1.2 数据库 server 命令行参数（方案 B：docker run 追加参数）
+
+`start-dev.sh` 中 `docker run` 命令行末尾追加：
+
+```bash
+docker run mysql:8.0 \
+  --character-set-server=utf8mb4 \
+  --collation-server=utf8mb4_general_ci \
+  --skip-character-set-client-handshake=1
 ```
 
-所有变量应当全部为 `utf8mb4` / `utf8mb4_0900_ai_ci`。
+> 注意：`--skip-character-set-client-handshake=1` 强制 server 忽略客户端的字符集协商请求，以 server 端的设置为准。
 
-#### 3.1.2 应用代码
+#### 3.1.3 为什么需要 A+B 双保险
+
+| 方案 | 优点 | 缺点 |
+|------|------|------|
+| 方案 A（cnf 卷挂载） | 支持 `[client]`/`[mysql]` 分组；支持 `init-connect` 捕获普通用户连接 | 依赖卷挂载是否正确生效，排查链路长 |
+| 方案 B（命令行参数） | 简单直接，与 `docker-compose.my.yml` 一致 | 只能影响 server，不支持分组配置 |
+| **A+B 双保险** | 任一方案生效即可，双重防护 | 无 |
+
+两种方案同时生效时，以 `[mysqld]` + 命令行参数中**更严格的配置**为准，**不会有冲突**。
+
+#### 3.1.4 应用代码
 
 `ruoyi-fastapi-backend/.env.dev` 中数据库连接已正确使用 `charset=utf8mb4`，**应用代码无需修改**。
 
-但建议在 `start-dev.sh` 中加上字符集自检（见 §5 后续改进）。
-
-#### 3.1.3 数据修复（一次性）
+#### 3.1.5 数据修复（一次性）
 
 脚本 [`scripts/fix_double_utf8.py`](../../../scripts/fix_double_utf8.py)，两次执行合计修复 150+ 行：
 
@@ -163,34 +191,46 @@ SHOW VARIABLES WHERE Variable_name LIKE 'character_set%' OR Variable_name LIKE '
 
 ### 3.2 修复步骤（复现）
 
-1. **确认 server 字符集已为 utf8mb4**
+> **前提**：请确保 `mysql-conf/charset.cnf` 文件存在且 `start-dev.sh` 已包含方案 B 命令行参数。
+
+1. **重建 MySQL 容器（使配置生效）**
 
    ```bash
-   docker exec ruoyi-mysql mysql -uroot -proot \
-       -e "SHOW VARIABLES LIKE 'character_set%';"
+   docker rm -f ruoyi-mysql
+   ./start-dev.sh
    ```
 
-2. **先 dry-run 预览**
+   观察输出中 `MySQL 字符集自检: character_set_client=utf8mb4 ✓` 是否出现。
+
+2. **确认 server 字符集已为 utf8mb4**
+
+   ```bash
+   docker exec ruoyi-mysql mysql --default-character-set=utf8mb4 -uroot -proot \
+       -e "SHOW VARIABLES WHERE Variable_name LIKE 'character_set%';"
+   ```
+
+   所有变量应当全部为 `utf8mb4`。
+
+3. **dry-run 预览（仅当有历史数据损坏时需要）**
 
    ```bash
    cd /Users/meow/Desktop/Project/smart-operation-platform
    python3 scripts/fix_double_utf8.py --dry-run
    ```
 
-3. **确认 dry-run 输出合理后，正式修复**
+4. **确认 dry-run 输出合理后，正式修复**
 
    ```bash
    python3 scripts/fix_double_utf8.py
    ```
 
-4. **抽样验证**
+5. **抽样验证**
 
    ```bash
-   docker exec ruoyi-mysql mysql -uroot -proot --default-character-set=utf8mb4 \
-       ruoyi-fastapi -e "
+   docker exec ruoyi-mysql mysql --default-character-set=utf8mb4 -uroot -proot ruoyi-fastapi -e "
        SET NAMES utf8mb4;
        SELECT menu_id, menu_name FROM sys_menu ORDER BY menu_id LIMIT 10;
-       "
+   "
    ```
 
    应看到全部正常中文 `系统管理`、`系统监控`、`系统工具` 等。
@@ -203,69 +243,76 @@ SHOW VARIABLES WHERE Variable_name LIKE 'character_set%' OR Variable_name LIKE '
 - **性能**：脚本全表扫描 + UPDATE，行数 < 200 时秒级完成
 - **回归风险**：脚本对每个字段做"修复前后对照"，仅当反转后含中文且与原值不同时才更新，**不会误改已正确数据**
 - **后续写入**：✅ 新写入的数据已不会再发生双重编码
-- **容器重建**：⚠️ 如果 `docker rm ruoyi-mysql` 重建容器，3.1.1 的 cnf 文件随容器丢失，需重新挂载或加 volumes（见 §5 改进 1）
+- **容器重建**：✅ `mysql-conf/charset.cnf` 在宿主机（`$PROJECT_ROOT/mysql-conf/`），`docker rm` 不会丢失；方案 B 命令行参数在 `start-dev.sh` 中，同样持久化
 
 ---
 
 ## 5. 后续改进（Follow-ups）
 
-### 改进 1：`mysql-conf` 永久卷挂载（防容器重建丢配置）— ✅ **已落地 (2026-07-11 17:00)**
+### 改进 1：cnf 永久卷挂载 + 命令行参数双保险 — ✅ **已落地 (2026-07-11 17:00, 升级 2026-07-11 20:37)**
 
 **复现现象**：2026-07-11 删除并重建 `ruoyi-mysql` 容器后，菜单/部门再次出现双重编码。
 
-**根因**：之前 `/etc/mysql/conf.d/charset.cnf` 是在**容器内手动写入**的，`docker rm` 后丢失，新容器以默认 `latin1` 启动，旧字符集配置不再生效。
+**根因**：之前 `/etc/mysql/conf.d/charset.cnf` 是在**容器内手动写入**的，`docker rm` 后丢失，新容器以默认 `latin1` 启动。
 
-**修复**：在项目根目录建立 `mysql-conf/charset.cnf` 文件（已提交）：
+**修复**：
 
-```ini
-[client]
-default-character-set = utf8mb4
-[mysql]
-default-character-set = utf8mb4
-[mysqld]
-character-set-server = utf8mb4
-collation-server = utf8mb4_0900_ai_ci
-init-connect = "SET NAMES utf8mb4"
-```
+1. 在项目根目录建立 `mysql-conf/charset.cnf` 文件（已提交），由 `start-dev.sh` 挂载
+2. `docker run` 命令行追加方案 B 参数，与 `docker-compose.my.yml` 第 46 行等价
 
-`start-dev.sh` 在 `docker run ruoyi-mysql` 时挂载该文件：
+`start-dev.sh` 中的实现：
 
 ```bash
 docker run -d \
   --name ruoyi-mysql \
-  ...
+  --network ruoyi-network \
+  --restart unless-stopped \
+  -e MYSQL_ROOT_PASSWORD=root \
+  -e MYSQL_DATABASE=ruoyi-fastapi \
+  -p 13306:3306 \
+  -v $PROJECT_ROOT/ruoyi-fastapi-backend/sql/ruoyi-fastapi.sql:/docker-entrypoint-initdb.d/ruoyi-fastapi.sql \
   -v $PROJECT_ROOT/mysql-conf/charset.cnf:/etc/mysql/conf.d/charset.cnf:ro \
-  mysql:8.0
+  mysql:8.0 \
+  --character-set-server=utf8mb4 \
+  --collation-server=utf8mb4_general_ci \
+  --skip-character-set-client-handshake=1
 ```
 
 **重要发现**：`ruoyi-fastapi-backend/sql/ruoyi-fastapi.sql` 这个 init SQL 文件本身就是**正确 utf8mb4 编码**的，容器首次启动会执行它自动建表+灌数据。所以：
 
-- ✅ 字符集挂载正确 → 应用发 utf8 字节、server 不再误按 latin1 解读
+- ✅ 字符集配置正确 → 应用发 utf8 字节、server 不再误按 latin1 解读
 - ✅ init SQL 本身合法 → 灌入数据不再被双重编码
 - ✅ **重建 ruoyi-mysql 后，再无双重编码问题**
 - ✅ **新建表、新写入数据全部正常**
 
 **已不再需要每次重建后跑数据修复脚本**——`fix_double_utf8.py` 仅作为应急保留。
 
-### 改进 2：`start-dev.sh` 增加启动后字符集自检 — ✅ **已落地**
+### 改进 2：`start-dev.sh` 字符集自检脚本（带诊断输出） — ✅ **已落地 (2026-07-11 17:00, 升级 2026-07-11 20:37)**
 
-在 MySQL 启动就绪后插入：
+在 MySQL 启动就绪后插入自检，失败时打印完整返回值便于诊断：
 
 ```bash
-local charset
-charset=$(docker exec ruoyi-mysql mysql -uroot -proot -N -B \
-  -e "SHOW VARIABLES WHERE Variable_name='character_set_client'" 2>/dev/null | awk '{print $2}')
+local charset_raw charset
+charset_raw=$(LANG=C docker exec ruoyi-mysql mysql --default-character-set=utf8mb4 \
+  -uroot -proot -N -B \
+  -e "SHOW VARIABLES WHERE Variable_name='character_set_client'" 2>&1)
+charset=$(echo "$charset_raw" | tail -n 1 | tr -d '[:space:]')
 if [ "$charset" != "utf8mb4" ]; then
-  log_error "MySQL character_set_client=$charset（期望 utf8mb4）"
+  log_error "MySQL character_set_client=[${charset}]（期望 utf8mb4）"
+  log_error "完整返回值（用于诊断）："
+  echo "$charset_raw" | sed 's/^/    /'
   log_error "可能原因：mysql-conf/charset.cnf 未挂载或被忽略"
   exit 1
 fi
 log_info "  MySQL 字符集自检: character_set_client=utf8mb4 ✓"
 ```
 
-启动若看到此自检行通过，说明 cnf 挂载生效；若缺失则会立即 fail-fast。
+关键改进：
+- `--default-character-set=utf8mb4`：强制 mysql CLI 客户端自身使用 utf8mb4 通信
+- `tail -n 1`：在只有一行结果时直接取该行，避免 `cut -f2` 对 tab 分隔符的脆弱依赖
+- 失败时打印完整输出，区分"字符集真的错"vs"命令本身出错（如权限、容器未就绪）vs"自检脚本解析 bug"
 
-### 改进 3：CI 增加批量数据健康巡检（防止未来再发生）— 🔲 **TODO**
+### 改进 3：CI 增加批量数据健康巡检 — 🔲 **TODO**
 
 修复脚本输出"待修复行数"作为健康指标，可接入 CI 周期任务。一旦 > 0 即报警。
 
@@ -282,6 +329,8 @@ log_info "  MySQL 字符集自检: character_set_client=utf8mb4 ✓"
 3. **`character_set_client` 是链路中间最关键的变量**，应用发什么字节、server 按什么解码、字段按什么存储，三者必须协调。
 4. **出现"双重编码"时**，简单 `b.decode('utf-8')` 解不出来，必须借助 **cp1252 高位映射表** 反查回原始字节。
 5. **优先做 `--dry-run`** 再正式跑批量修复，脚本已默认提供。
+6. **自检脚本本身也要健壮**——用 `tail -n 1` 代替 `cut -f2`，并在失败时打印完整输出；shell 的 `set -e` 配合 `local` 变量时要小心子 shell 退出码。
+7. **双保险优于单方案**：cnf 挂载 + 命令行参数同时存在，任一生效即可防回归。
 
 ---
 
@@ -344,10 +393,10 @@ def reverse_double_utf8(s):
 | 0x80   | U+20AC  | €      | 欧元符号 |
 | 0x8B   | U+2039  | ‹      | 单左引号 |
 | 0x8C   | U+0152  | Œ      | OE 连字  |
-| 0x91   | U+2018  | ‘      | 左单引号 |
-| 0x92   | U+2019  | ’      | 右单引号 |
-| 0x93   | U+201C  | “      | 左双引号 |
-| 0x94   | U+201D  | ”      | 右双引号 |
+| 0x91   | U+2018  | '      | 左单引号 |
+| 0x92   | U+2019  | '      | 右单引号 |
+| 0x93   | U+201C  | "      | 左双引号 |
+| 0x94   | U+201D  | "      | 右双引号 |
 | 0x97   | U+2014  | —      | 破折号   |
 | 0x99   | U+2122  | ™      | 商标符号 |
 | 0x9C   | U+0153  | œ      | oe 连字  |
@@ -355,7 +404,7 @@ def reverse_double_utf8(s):
 
 ---
 
-## 8. 勘误（2026-07-11 17:13）
+## 8. 勘误（Errata）
 
 ### 8.1 关于"Docker 模式天然免疫"的错误说明
 
@@ -366,33 +415,43 @@ def reverse_double_utf8(s):
   不存在"应用在容器里所以正常"这回事。
 - 真正差异在 `docker run` 命令：
 
-  | 模式 | 启动方式 | 字符集配置 |
-  |---|---|---|
-  | `./start-dev.sh`（local） | `start-dev.sh` 第 169 行 `docker run mysql:8.0` | **无参数**，默认 latin1 → 乱码 |
-  | `./start-dev.sh --docker` | `docker-compose.my.yml` 第 46 行 `command:` 行 | 显式声明 utf8mb4 → 正常 |
+| 模式 | 启动方式 | 字符集配置 |
+|---|---|---|
+| `./start-dev.sh`（local） | `start-dev.sh` 第 169 行 `docker run mysql:8.0` | **无参数**，默认 latin1 → 乱码（修复前） |
+| `./start-dev.sh --docker` | `docker-compose.my.yml` 第 46 行 `command:` 行 | 显式声明 utf8mb4 → 正常 |
 
-### 8.2 最终方案选择（B 为主，A 备用）
+### 8.2 方案演进历史
 
-**主方案（B）**：直接在 `docker run` 末尾追加 `--character-set-server` 等参数，
-等价格式复制 `docker-compose.my.yml` 第 46 行 `command:` 的内容：
+| 时间 | 方案 | 状态 | 说明 |
+|------|------|------|------|
+| 2026-07-11 下午 | 方案 0：容器内手动写入 cnf | ❌ 已废弃 | `docker rm` 后丢失，不防重建 |
+| 2026-07-11 17:00 | 方案 A：cnf 卷挂载 | ✅ 落地（基础版） | `mysql-conf/charset.cnf` 挂载 |
+| 2026-07-11 17:21 | 方案 B：命令行参数（主）/ 方案 A（备用） | ⚠️ 文档更新但脚本未同步 | 文档写 B 为主，实际脚本仍是方案 A |
+| **2026-07-11 20:37** | **方案 A+B 双保险** | **✅ 最终落地** | cnf 挂载 + 命令行参数同时生效；自检脚本升级 |
 
-```bash
-docker run mysql:8.0 \
-  --character-set-server=utf8mb4 \
-  --collation-server=utf8mb4_general_ci \
-  --skip-character-set-client-handshake=1
+### 8.3 自检脚本解析 bug 排查记录
+
+**问题现象**：2026-07-11 晚间，`./start-dev.sh` 执行后自检报错：
+
+```
+[ERROR] MySQL character_set_client=??期望 utf8mb4）
 ```
 
-**备用方案（A）**：保留 `mysql-conf/charset.cnf` + 卷挂载不变。
-当需要以下能力时切回 A：
-- 设置 `[client]` / `[mysql]` CLI 专用区块
-- 使用 `init-connect = "SET NAMES utf8mb4"` 捕获普通用户连接的字符集问题
+其中 `??` 仅 2 字符，而预期值 `utf8mb4` 为 6 字符。
 
-cnf 方案优于命令行参数的原因：
-- 支持 `[client]` / `[mysql]` / `[mysqld]` 分组，命令行参数只能影响 server
-- 支持 `init-connect = "SET NAMES utf8mb4"` 这样的会话级指令
-- 配置内容可版本控制且独立于容器/启动命令
+**排查过程**：
+1. 原始脚本使用 `cut -f2 -d'	'`（tab 分隔取第 2 列），在 macOS zsh 环境下对 tab 分隔符处理存在差异
+2. `mysql -N -B` 输出为 `character_set_client<TAB>utf8mb4`，`cut -f2` 应取到 `utf8mb4`，但实际取到了空值或短值
+3. 排除字符集本身错误（`docker run` 已同时有方案 A/B 配置）
+4. 确认为**自检脚本解析 bug**，非 MySQL 字符集实际错误
+
+**修复**：
+- 将 `cut -f2 -d'	'` 改为 `tail -n 1 | tr -d '[:space:]'`
+- 增加 `--default-character-set=utf8mb4` 强制 mysql CLI 自身通信字符集
+- 失败时打印完整返回值，区分"字符集真错"vs"命令出错"vs"解析 bug"
+
+**教训**：自检脚本本身也需要健壮性测试——不能只在字符集正确时测试通过，也要模拟错误场景。
 
 ---
 
-**最后更新**：2026-07-11 17:21（B 方案上线，A 方案降级为备用，脚本 + 文档同步更新）
+**最后更新**：2026-07-11 20:37（A+B 双保险最终落地，自检脚本升级，文档全面同步更新）

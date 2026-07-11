@@ -115,7 +115,8 @@ const filtered = computed(() => {
 async function load() {
   loading.value = true
   try {
-    list.value = await listCustomers()
+    const res = await listCustomers()
+    list.value = res?.rows ?? []
   } catch {
     list.value = []
   } finally {
