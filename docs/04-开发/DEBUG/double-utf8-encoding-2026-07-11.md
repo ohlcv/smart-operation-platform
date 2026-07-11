@@ -355,4 +355,44 @@ def reverse_double_utf8(s):
 
 ---
 
-**最后更新**：2026-07-11 17:10（mysql-conf 卷挂载验证通过）
+## 8. 勘误（2026-07-11 17:13）
+
+### 8.1 关于"Docker 模式天然免疫"的错误说明
+
+**之前错误表述**：以为"应用跑在容器里"是字符集正常的关键。
+
+**实际真相**：
+- 两种模式（`./start-dev.sh` 和 `./start-dev.sh --docker`）**共用同一个 ruoyi-mysql 容器**，
+  不存在"应用在容器里所以正常"这回事。
+- 真正差异在 `docker run` 命令：
+
+  | 模式 | 启动方式 | 字符集配置 |
+  |---|---|---|
+  | `./start-dev.sh`（local） | `start-dev.sh` 第 169 行 `docker run mysql:8.0` | **无参数**，默认 latin1 → 乱码 |
+  | `./start-dev.sh --docker` | `docker-compose.my.yml` 第 46 行 `command:` 行 | 显式声明 utf8mb4 → 正常 |
+
+### 8.2 最终方案选择（B 为主，A 备用）
+
+**主方案（B）**：直接在 `docker run` 末尾追加 `--character-set-server` 等参数，
+等价格式复制 `docker-compose.my.yml` 第 46 行 `command:` 的内容：
+
+```bash
+docker run mysql:8.0 \
+  --character-set-server=utf8mb4 \
+  --collation-server=utf8mb4_general_ci \
+  --skip-character-set-client-handshake=1
+```
+
+**备用方案（A）**：保留 `mysql-conf/charset.cnf` + 卷挂载不变。
+当需要以下能力时切回 A：
+- 设置 `[client]` / `[mysql]` CLI 专用区块
+- 使用 `init-connect = "SET NAMES utf8mb4"` 捕获普通用户连接的字符集问题
+
+cnf 方案优于命令行参数的原因：
+- 支持 `[client]` / `[mysql]` / `[mysqld]` 分组，命令行参数只能影响 server
+- 支持 `init-connect = "SET NAMES utf8mb4"` 这样的会话级指令
+- 配置内容可版本控制且独立于容器/启动命令
+
+---
+
+**最后更新**：2026-07-11 17:21（B 方案上线，A 方案降级为备用，脚本 + 文档同步更新）

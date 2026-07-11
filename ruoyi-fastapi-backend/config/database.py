@@ -22,7 +22,7 @@ def build_async_sqlalchemy_database_url() -> str:
         )
     return (
         f'mysql+asyncmy://{DataBaseConfig.db_username}:{quote_plus(DataBaseConfig.db_password)}@'
-        f'{DataBaseConfig.db_host}:{DataBaseConfig.db_port}/{DataBaseConfig.db_database}'
+        f'{DataBaseConfig.db_host}:{DataBaseConfig.db_port}/{DataBaseConfig.db_database}?charset=utf8mb4'
     )
 
 
@@ -44,7 +44,7 @@ def build_sync_sqlalchemy_database_url() -> str:
         )
     return (
         f'mysql+pymysql://{DataBaseConfig.db_username}:{quote_plus(DataBaseConfig.db_password)}@'
-        f'{DataBaseConfig.db_host}:{DataBaseConfig.db_port}/{DataBaseConfig.db_database}'
+        f'{DataBaseConfig.db_host}:{DataBaseConfig.db_port}/{DataBaseConfig.db_database}?charset=utf8mb4'
     )
 
 
@@ -67,6 +67,10 @@ def create_async_db_engine(echo: bool | None = None) -> AsyncEngine:
         pool_size=DataBaseConfig.db_pool_size,
         pool_recycle=DataBaseConfig.db_pool_recycle,
         pool_timeout=DataBaseConfig.db_pool_timeout,
+        connect_args={
+            'charset': 'utf8mb4',
+            'init_command': "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci",
+        },
     )
 
 
@@ -86,6 +90,10 @@ def create_sync_db_engine(echo: bool | None = None) -> Engine:
         pool_size=DataBaseConfig.db_pool_size,
         pool_recycle=DataBaseConfig.db_pool_recycle,
         pool_timeout=DataBaseConfig.db_pool_timeout,
+        connect_args={
+            'charset': 'utf8mb4',
+            'init_command': "SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci",
+        },
     )
 
 

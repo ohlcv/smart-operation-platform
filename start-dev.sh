@@ -171,9 +171,8 @@ run_local_mode() {
         --network ruoyi-network \
         --restart unless-stopped \
         $([ "$name" = "ruoyi-mysql" ] && echo "-e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=ruoyi-fastapi -p 13306:3306 \
-          -v $PROJECT_ROOT/ruoyi-fastapi-backend/sql/ruoyi-fastapi.sql:/docker-entrypoint-initdb.d/ruoyi-fastapi.sql \
-          -v $PROJECT_ROOT/mysql-conf/charset.cnf:/etc/mysql/conf.d/charset.cnf:ro" || echo "-p 16379:6379") \
-        $([ "$name" = "ruoyi-mysql" ] && echo "mysql:8.0" || echo "redis:latest")
+          -v $PROJECT_ROOT/ruoyi-fastapi-backend/sql/ruoyi-fastapi.sql:/docker-entrypoint-initdb.d/ruoyi-fastapi.sql" || echo "-p 16379:6379") \
+        $([ "$name" = "ruoyi-mysql" ] && echo "mysql:8.0 --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci --skip-character-set-client-handshake=1" || echo "redis:latest")
     fi
   done
 
@@ -201,7 +200,7 @@ run_local_mode() {
       -e "SHOW VARIABLES WHERE Variable_name='character_set_client'" 2>/dev/null | awk '{print $2}')
     if [ "$charset" != "utf8mb4" ]; then
       log_error "MySQL character_set_client=$charset（期望 utf8mb4）"
-      log_error "可能原因：mysql-conf/charset.cnf 未挂载或被忽略"
+      log_error "可能原因：MySQL 未加载 utf8mb4 参数，请检查 docker run / docker-compose.my.yml"
       exit 1
     fi
     log_info "  MySQL 字符集自检: character_set_client=utf8mb4 ✓"
