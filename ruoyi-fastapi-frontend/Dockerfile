@@ -9,10 +9,10 @@ COPY . .
 RUN npm config set registry https://registry.npmmirror.com
 
 # 安装依赖
-RUN NODE_OPTIONS="--max-old-space-size=3072" npm install
+RUN NODE_OPTIONS="--max-old-space-size=4096" npm install
 
 # 执行docker构建命令
-RUN NODE_OPTIONS="--max-old-space-size=3072" npm run build:docker
+RUN NODE_OPTIONS="--max-old-space-size=4096" npm run build:docker
 
 # 运行阶段
 FROM nginx:latest
