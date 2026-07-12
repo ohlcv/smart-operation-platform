@@ -222,6 +222,15 @@ export const dynamicRoutes = [
         meta: { title: '仪表盘', icon: 'dashboard', noCache: false, activeMenu: '/dashboard' }
       }
     ]
+  },
+  {
+    // 真·大屏：顶级路由（不嵌 Layout），菜单 hidden
+    // 由 dashboard.vue 头部「全屏模式」按钮 router.push 进入
+    path: '/dashboard/screen',
+    component: () => import('@/views/dashboard/dashboard.vue'),
+    name: 'BizDashboardScreen',
+    permissions: ['biz:dashboard:view'],
+    meta: { title: '仪表盘 · 大屏', noCache: false, hidden: true, activeMenu: '/dashboard' }
   }
 ] // eslint-disable-line
 

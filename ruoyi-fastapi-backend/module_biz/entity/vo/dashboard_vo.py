@@ -51,6 +51,13 @@ class Trend7dItemModel(DashboardBaseModel):
     )
 
 
+class RevenueTrendItemModel(DashboardBaseModel):
+    """营收月度趋势面积图一项（YTD）"""
+
+    month: date = Field(..., description='月份 1 号 YYYY-MM-DD，前端按 .slice(5) 取 MM')
+    revenue: Decimal = Field(default=Decimal('0.00'), description='当月营收总和（元），全业务线合并')
+
+
 class StatusDistributionItemModel(DashboardBaseModel):
     """合同状态分布饼图一项"""
 
@@ -100,6 +107,10 @@ class DashboardOverviewModel(DashboardBaseModel):
         alias='trend7d',  # 显式 alias，避免 to_camel 把 "7d" 转成 "7D"
         serialization_alias='trend7d',
         description='7 日合同趋势',
+    )
+    revenue_trend: list[RevenueTrendItemModel] = Field(
+        default_factory=list,
+        description='营收月度趋势（YTD，1 月至当前月，未来月份补 0）',
     )
     status_distribution: list[StatusDistributionItemModel] = Field(
         default_factory=list, description='合同状态分布'

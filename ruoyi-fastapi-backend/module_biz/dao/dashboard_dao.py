@@ -25,6 +25,7 @@ from module_biz.entity.vo.dashboard_vo import (
     AiSuggestionItemModel,
     ChannelLocationItemModel,
     RecentApprovalItemModel,
+    RevenueTrendItemModel,
     STATUS_LABEL_MAP,
     StatusDistributionItemModel,
     TopCustomerItemModel,
@@ -176,6 +177,48 @@ class DashboardDAO:
                     day=d,
                     new_contracts=new_map.get(str(d), 0),
                     approved_contracts=approved_map.get(str(d), 0),
+                )
+            )
+        return items
+
+    # ---------------- 营收月度趋势 ----------------
+
+    @staticmethod
+    async def trend_revenue(db: AsyncSession, year: int | None = None) -> list[RevenueTrendItemModel]:
+        """本年到当前（YTD）按月聚合营收。
+
+        数据源 biz_operation 表（period_type='month' AND period LIKE 'YYYY-%'）。
+        全业务线求和，未来月份（> 当前月）补 0 占位，X 轴 YTD 连续。
+        """
+        from module_biz.entity.do.operation_do import BizOperation
+
+        today = date.today()
+        target_year = year if year else today.year
+        current_month = today.year * 12 + today.month if target_year == today.year else 12
+
+        # 该年所有月份的实际营收总和
+        period_prefix = f'{target_year}-'
+        stmt = (
+            select(BizOperation.period, func.coalesce(func.sum(BizOperation.revenue), 0))
+            .where(BizOperation.period_type == 'month')
+            .where(BizOperation.period.like(f'{period_prefix}%'))
+            .group_by(BizOperation.period)
+        )
+        rows = (await db.execute(stmt)).all()
+        revenue_map: dict[str, Decimal] = {}
+        for period_key, rev in rows:
+            if period_key:
+                revenue_map[str(period_key)] = Decimal(str(rev or 0))
+
+        # YTD:1 月到当前月，未来月份补 0
+        items: list[RevenueTrendItemModel] = []
+        for m in range(1, 13):
+            period_key = f'{target_year}-{m:02d}'
+            is_future = (target_year * 12 + m) > current_month
+            items.append(
+                RevenueTrendItemModel(
+                    month=date(target_year, m, 1),
+                    revenue=Decimal('0.00') if is_future else revenue_map.get(period_key, Decimal('0.00')),
                 )
             )
         return items
@@ -411,31 +454,40 @@ class DashboardDAO:
             except SQLAlchemyError:
                 my_todo = 0
 
-        # 6 维分数 0-100
-        # 1. 资金合规：approved 占比
+        # 6 维分数 0-100（v3.10 对齐 dome DataScreen.vue 行 201-205 顺序）
+        # 0 资金合规：approved 占比
         compliance = round(approved / max(total_contracts, 1) * 100, 0) if total_contracts else 90
-        # 2. 风险防控：100 - rejected*5
+        # 1 风险防控：100 - rejected*5
         risk_ctl = max(40, 100 - rejected * 5)
-        # 3. 审批时效：pending 多则扣分
+        # 2 盈利能力：从 biz_operation 取利润率（gross_profit / revenue × 100）
+        profitability = 60
+        try:
+            margin_stmt = (
+                "SELECT COALESCE(SUM(gross_profit) / NULLIF(SUM(revenue), 0) * 100, 0) "
+                "FROM biz_operation"
+            )
+            margin_row = (await db.execute(text(margin_stmt))).one()
+            margin = float(margin_row[0] or 0)
+            profitability = max(40, min(100, round(margin * 3)))
+        except SQLAlchemyError:
+            pass
+        # 3 审批时效：pending 多则扣分
         speed = max(40, 100 - pending * 2)
-        # 4. 数据质量：默认 85（够用即可）
-        data_q = 85
-        # 5. 渠道覆盖：渠道数（v3.3 真实读法）
-        coverage = 70
+        # 4 回款健康：100 - 待开票金额/营收 × 100
+        payback = 92
         try:
-            ch = await db.execute(text("SELECT COUNT(*) FROM biz_channel WHERE status = '0'"))
-            coverage = min(100, int(ch.scalar() or 0) * 10 + 40)
+            pi_stmt = "SELECT COALESCE(SUM(amount), 0) FROM biz_invoice WHERE status = 'pending'"
+            pending_invoice = float((await db.execute(text(pi_stmt))).scalar() or 0)
+            tr_stmt = "SELECT COALESCE(SUM(revenue), 0) FROM biz_operation"
+            total_revenue = float((await db.execute(text(tr_stmt))).scalar() or 0)
+            if total_revenue > 0:
+                payback = max(40, round(100 - (pending_invoice / total_revenue) * 100))
         except SQLAlchemyError:
             pass
-        # 6. 客户活跃度：top10 客户 / 总客户
-        activity = 75
-        try:
-            tc = await db.execute(text("SELECT COUNT(DISTINCT customer_id) FROM biz_contract"))
-            activity = min(100, int(tc.scalar() or 0) * 5 + 50)
-        except SQLAlchemyError:
-            pass
+        # 5 数据质量：dome 默认 92
+        data_q = 92
 
-        scores = [compliance, risk_ctl, speed, data_q, coverage, activity]
+        scores = [compliance, risk_ctl, profitability, speed, payback, data_q]
 
         # 风险条目（按阈值）
         risks: list[AiRiskItemModel] = []

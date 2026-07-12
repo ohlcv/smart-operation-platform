@@ -112,6 +112,44 @@ function buildOption() {
     }
   }
 
+  if (props.type === 'area') {
+    return {
+      ...baseTitle,
+      grid: { left: 50, right: 16, top: props.title ? 40 : 16, bottom: 24 },
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: 'rgba(4,20,48,0.9)',
+        borderColor: '#2de1c2',
+        textStyle: { color: '#cfe8ff' },
+        valueFormatter: (v) => '¥' + Number(v).toLocaleString()
+      },
+      xAxis: {
+        type: 'category', data: props.categories,
+        axisLabel: { color: '#7fa8d0' },
+        axisLine: { lineStyle: { color: '#1c3a66' } }
+      },
+      yAxis: {
+        type: 'value',
+        axisLabel: { color: '#7fa8d0', formatter: (v) => v / 10000 + '万' },
+        splitLine: { lineStyle: { color: 'rgba(28,58,102,0.4)' } }
+      },
+      series: [{
+        type: 'line', smooth: true, symbol: 'none', data: props.data,
+        lineStyle: { color: '#2de1c2', width: 2, shadowBlur: 10, shadowColor: '#2de1c2' },
+        itemStyle: { color: '#2de1c2' },
+        areaStyle: {
+          color: {
+            type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: 'rgba(45,225,194,0.5)' },
+              { offset: 1, color: 'rgba(45,225,194,0.02)' }
+            ]
+          }
+        }
+      }]
+    }
+  }
+
   if (props.type === 'pie') {
     const seriesData = (props.data || []).map((d, i) => ({
       name: d.label || d.name || (props.categories[i] || ''),
@@ -133,11 +171,35 @@ function buildOption() {
   }
 
   if (props.type === 'radar') {
+    const max = (Array.isArray(props.categories) && props.categories[0] && typeof props.categories[0] === 'object')
+      ? (props.categories[0].max || 100)
+      : 100
+    const indicators = (Array.isArray(props.categories) && props.categories.length && typeof props.categories[0] === 'object')
+      ? props.categories
+      : (props.categories || []).map((name) => ({ name, max }))
     return {
       ...baseTitle,
-      tooltip: { backgroundColor: 'rgba(0,30,80,0.9)', borderColor: '#00f2ff', textStyle: { color: '#fff' } },
-      radar: { indicator: props.categories, axisName: { color: AXIS_LABEL_COLOR }, splitLine: { lineStyle: { color: SPLIT_LINE_COLOR } } },
-      series: [{ type: 'radar', data: [{ value: props.data, name: '' }], lineStyle: { color: '#00f2ff' }, areaStyle: { color: 'rgba(0,242,255,0.3)' } }]
+      backgroundColor: 'transparent',
+      tooltip: {
+        backgroundColor: 'rgba(4,20,48,0.9)',
+        borderColor: '#2de1c2',
+        textStyle: { color: '#cfe8ff' }
+      },
+      radar: {
+        radius: '65%',
+        indicator: indicators,
+        axisName: { color: '#9fd0ff', fontSize: 11 },
+        splitLine: { lineStyle: { color: 'rgba(28,155,230,0.25)' } },
+        splitArea: { show: false },
+        axisLine: { lineStyle: { color: 'rgba(28,155,230,0.25)' } }
+      },
+      series: [{
+        type: 'radar',
+        data: [{ value: props.data, name: '' }],
+        lineStyle: { color: '#2de1c2', width: 2 },
+        itemStyle: { color: '#2de1c2' },
+        areaStyle: { color: 'rgba(45,225,194,0.28)' }
+      }]
     }
   }
 

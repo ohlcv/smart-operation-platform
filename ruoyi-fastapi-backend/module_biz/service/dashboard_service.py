@@ -89,7 +89,7 @@ class DashboardService:
 
         role_keys = _current_user_role_keys(current_user)
 
-        # 9 个 DAO 调用并发执行
+        # 10 个 DAO 调用并发执行
         (
             kpi_contract,
             kpi_customer,
@@ -97,6 +97,7 @@ class DashboardService:
             kpi_invoice,
             kpi_approval,
             trend_7d,
+            revenue_trend,
             status_distribution,
             top_customers,
             recent_approvals,
@@ -108,6 +109,7 @@ class DashboardService:
             DashboardDAO.kpi_invoice_pending(db),
             DashboardDAO.kpi_approval_pending(db, role_keys),
             DashboardDAO.trend_7d(db, province),
+            DashboardDAO.trend_revenue(db),
             DashboardDAO.status_distribution(db, province),
             DashboardDAO.top_customers(db, province),
             DashboardDAO.recent_approvals(db),
@@ -125,6 +127,7 @@ class DashboardService:
         overview = DashboardOverviewModel(
             kpi=kpi_payload,  # type: ignore[arg-type]
             trend_7d=trend_7d,
+            revenue_trend=revenue_trend,
             status_distribution=status_distribution,
             top_customers=top_customers,
             recent_approvals=recent_approvals,

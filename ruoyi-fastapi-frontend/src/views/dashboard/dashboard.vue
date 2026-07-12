@@ -1,6 +1,5 @@
 <template>
-  <!-- v3.6：扁平路由，去掉 ds-full 切换 -->
-  <div class="ds">
+  <div class="ds" :class="{ 'is-fullscreen': isScreenRoute }">
     <!-- 顶部标题栏 -->
     <header class="screen-head">
       <div class="head-side left">
@@ -18,7 +17,14 @@
         <span class="clock">{{ clock }}</span>
         <span class="sep">|</span>
         {{ today }}
-        <!-- v3.5：删除「全屏投放」按钮，仅保留普通布局大屏；真实全屏用浏览器原生 F11 -->
+        <span class="sep">|</span>
+        <el-link
+          :underline="false"
+          class="fullscreen-toggle"
+          @click="toggleFullscreen"
+        >
+          {{ isScreenRoute ? '退出全屏' : '全屏模式' }}
+        </el-link>
       </div>
     </header>
 
@@ -41,11 +47,11 @@
         </div>
 
         <div class="panel grow">
-          <div class="panel-title">7 日合同趋势</div>
+          <div class="panel-title">营收月度趋势 <em>YTD</em></div>
           <BaseChart
-            type="line"
-            :categories="trendDates"
-            :data="trendNew"
+            type="area"
+            :categories="revenueMonths"
+            :data="revenueAmounts"
             height="240px"
           />
         </div>
@@ -94,18 +100,52 @@
             AI 智能大脑 · 风险雷达
             <em>{{ ai.summary ? '已诊断' : '诊断中…' }}</em>
           </div>
+
+          <!-- 雷达图 + summary（dome 同款 d2de1c2 青色风格） -->
           <BaseChart
             v-if="ai.radarScores && ai.radarScores.length"
             type="radar"
             :categories="radarIndicators"
             :data="ai.radarScores"
-            height="230px"
+            height="220px"
           />
           <div v-else class="ai-empty">AI 诊断中…</div>
 
-          <div class="ai-typer">
+          <!-- AI 总览一句话（替代原打字机） -->
+          <div v-if="ai.summary" class="ai-summary">
             <span class="ai-tag">AI</span>
-            <span class="ai-text">{{ typed }}<span class="caret">▋</span></span>
+            <span class="ai-text">{{ ai.summary }}</span>
+          </div>
+
+          <!-- 风险 + 建议 分栏卡片（dome AiBrainPanel.vue 同款双列布局） -->
+          <div v-if="ai.risks || ai.suggestions" class="ai-cols">
+            <div class="ai-col">
+              <div class="col-title">⚠ 业务风险预警</div>
+            <div
+              v-for="(r, i) in (ai.risks || [])"
+              :key="'r' + i"
+              class="risk-item"
+              :class="'lv-' + r.level"
+            >
+              <div class="risk-head">
+                <span class="risk-tag" :class="'lv-' + r.level">{{ aiLevelLabel(r.level) }}</span>
+                <span class="risk-title">{{ r.title }}</span>
+              </div>
+                <div class="risk-detail">{{ r.detail }}</div>
+              </div>
+              <div v-if="!(ai.risks && ai.risks.length)" class="ai-empty-mini">✓ 当前无高风险</div>
+            </div>
+            <div class="ai-col">
+              <div class="col-title">💡 运营/资金建议</div>
+              <div
+                v-for="(s, i) in (ai.suggestions || [])"
+                :key="'s' + i"
+                class="sug-item"
+              >
+                <div class="sug-title">{{ i + 1 }}. {{ s.title }}</div>
+                <div class="sug-detail">{{ s.detail }}</div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -115,28 +155,85 @@
 
 <script setup>
 /**
- * 仪表盘 - 真·大屏（v3.3 路线 C：AI 智能大脑 + 6 KPI + 4 图表 + 中国地图 + 省份联动）
+ * 仪表盘（v3.10 双路由共用 + 修正 Chrome 横向滚动 / sidebar 遮挡）
  *
- * 形态：DataScreen 风格（demo1 同款）
- * - 顶部标题栏（中文标题 + 英文副标题 + 在线状态 + 实时时钟）
+ * 两种形态：
+ * - 默认：路由 `/dashboard` → `/dashboard/index`，嵌 Layout（左侧菜单 + 顶部 navbar + Tags View + 中间区）
+ *   头部右侧按钮显示「全屏模式」→ 点击 → push `/dashboard/screen` + requestFullscreen
+ *   暗色背景只到 Layout 主区边界（width: 100%），不会被 sidebar 遮挡，没有横向溢出
+ * - 真·大屏：路由 `/dashboard/screen`（顶级，不嵌 Layout），浏览器进入 Fullscreen API
+ *   头部右侧按钮显示「退出全屏」→ 点击 → router.back + exitFullscreen
+ *   暗色背景占满整页（min-height: 100vh + margin: 0）
+ *
+ * - 路由切换由头部按钮主动触发；浏览器 Esc / fullscreenchange 事件自动同步路由
+ * - 同 dashboard.vue 文件两个 route 复用：screen 路由下用 `.ds.is-fullscreen` CSS（min-height: 100vh + margin: 0）
+ * - 默认嵌入 Layout 时用 `.ds`（width: 100% + margin: 0 + 无 100vh，v3.10 去掉 v3.8/v3.9 的负 margin hack）
+ *
+ * 布局：DataScreen 风格（demo1 同款）
+ * - 顶部标题栏（中文标题 + 英文副标题 + 在线状态 + 实时时钟 + 全屏切换）
  * - 三栏分栏：左 26% KPI + 趋势 / 中央 flex:1 地图 / 右 26% 审批跑马灯 + AI 大脑
  * - 省份联动：点击地图省份 → KPI / 趋势 / 状态分布 / Top10 全部按 province 过滤
  * - AI 大脑：6 维雷达 + summary / risks / suggestions 打字机轮播
  *
- * 路由：/dashboard（v3.6 扁平，顶级路由，菜单直达）
- * 全屏：浏览器原生 F11 / 系统快捷键
  * 数据源：
  *   - GET /biz/dashboard/overview[?province=xx]
  *   - GET /biz/dashboard/ai-diagnose
  */
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { getDashboardOverview, getDashboardAiDiagnose } from '@/api/biz/dashboard'
 import BaseChart from '@/components/Biz/BaseChart.vue'
 import CountTo from '@/components/Biz/CountTo.vue'
 import ScreenMap from '@/components/Biz/ScreenMap.vue'
 
-// v3.6：扁平路由后无 Layout / 无全屏分支；useRoute / fullscreen ref / props / toggleScreen 已无引用
-// 注释保留以备后续真需要时还原
+// v3.9：双路由共用 dashboard.vue。判断当前 route.name === 'BizDashboardScreen'
+// 即为真·大屏形态；否则为默认嵌 Layout 形态。
+const route = useRoute()
+const router = useRouter()
+const isScreenRoute = computed(() => route.name === 'BizDashboardScreen')
+
+// 浏览器 Fullscreen API 封装
+function getFullscreenElement() {
+  return document.fullscreenElement || document.webkitFullscreenElement || null
+}
+function requestFullscreen(el) {
+  const fn = el.requestFullscreen || el.webkitRequestFullscreen
+  if (fn) return fn.call(el)
+  return Promise.reject(new Error('Fullscreen API unsupported'))
+}
+function exitFullscreen() {
+  const fn = document.exitFullscreen || document.webkitExitFullscreen
+  if (fn) return fn.call(document)
+  return Promise.resolve()
+}
+
+async function toggleFullscreen() {
+  if (isScreenRoute.value) {
+    // 当前在真·大屏：退到默认嵌 Layout 路由 + 退浏览器全屏
+    try { await exitFullscreen() } catch (e) { /* ignore */ }
+    router.push('/dashboard')
+  } else {
+    // 当前在默认：跳大屏路由 + 进浏览器全屏
+    router.push('/dashboard/screen')
+    // 路由切换后等组件挂完再 requestFullscreen
+    await new Promise((r) => setTimeout(r, 50))
+    try {
+      const el = document.documentElement
+      await requestFullscreen(el)
+    } catch (e) {
+      console.warn('requestFullscreen failed:', e)
+    }
+  }
+}
+
+// 监听浏览器全屏变化：用户按 Esc / 系统切走全屏 → 自动回默认路由
+function onFullscreenChange() {
+  if (!isScreenRoute.value) return
+  if (!getFullscreenElement()) {
+    // 浏览器全屏状态没了 + 当前在大屏路由 → 跳回默认
+    router.push('/dashboard')
+  }
+}
 
 // ---- 时钟 ----
 const clock = ref('')
@@ -156,6 +253,7 @@ const chartRef = ref(null)
 const overview = ref({
   kpi: {},
   trend7d: [],
+  revenueTrend: [],
   statusDistribution: [],
   topCustomers: [],
   recentApprovals: [],
@@ -186,8 +284,12 @@ function resetNational() {
 }
 
 // ---- 派生 ----
-const trendDates = computed(() => (overview.value.trend7d || []).map((t) => (t.date || t.day || '').slice(5)))
-const trendNew = computed(() => (overview.value.trend7d || []).map((t) => t.newContracts || 0))
+// 营收月度趋势：YTD，月份 X 轴标签如 "07月"，数据为元
+const revenueMonths = computed(() => (overview.value.revenueTrend || []).map((t) => {
+  const m = t.month || t.date || ''
+  return m ? (m.slice(5) + '月') : ''
+}))
+const revenueAmounts = computed(() => (overview.value.revenueTrend || []).map((t) => Number(t.revenue || 0)))
 
 const metricCards = computed(() => {
   const k = overview.value.kpi || {}
@@ -217,58 +319,25 @@ const marqueeLoop = computed(() => [
   ...recentApprovals.value
 ])
 
-// AI 雷达 6 维指标（与后端 metrics 顺序对齐）
+// AI 雷达 6 维指标（与后端 metrics 顺序对齐，v3.10 改 dome 同款 6 维）
 const radarIndicators = computed(() => [
   { name: '资金合规', max: 100 },
   { name: '风险防控', max: 100 },
+  { name: '盈利能力', max: 100 },
   { name: '审批时效', max: 100 },
-  { name: '数据质量', max: 100 },
-  { name: '渠道覆盖', max: 100 },
-  { name: '客户活跃', max: 100 }
+  { name: '回款健康', max: 100 },
+  { name: '数据质量', max: 100 }
 ])
 
-// AI 打字机
-const typed = ref('')
-let typerTimer = null
-function startTyper() {
-  stopTyper()
-  let mi = 0
-  const typeMsg = () => {
-    const msgs = aiMessages.value
-    if (!msgs.length) {
-      typerTimer = setTimeout(typeMsg, 500)
-      return
-    }
-    const cur = String(msgs[mi % msgs.length] || '')
-    let ci = 0
-    typed.value = ''
-    const step = () => {
-      ci++
-      typed.value = cur.slice(0, ci)
-      if (ci < cur.length) typerTimer = setTimeout(step, 36)
-      else typerTimer = setTimeout(() => { mi++; typeMsg() }, 2400)
-    }
-    step()
-  }
-  typeMsg()
-}
-function stopTyper() {
-  if (typerTimer) {
-    clearTimeout(typerTimer)
-    typerTimer = null
-  }
-}
-const aiMessages = computed(() => {
-  const arr = []
-  if (ai.value.summary) arr.push(ai.value.summary)
-  ;(ai.value.risks || []).forEach((r) => {
-    arr.push(`【${r.level === 'high' ? '高' : r.level === 'medium' ? '中' : '低'}风险】${r.title}：${r.detail}`)
-  })
-  ;(ai.value.suggestions || []).forEach((s) => {
-    arr.push(`【建议】${s.title}：${s.detail}`)
-  })
-  return arr
-})
+// AI 风险等级标签（dome AiBrainPanel.vue lvType 同款：high/medium/low → 高/中/低）
+const aiLevelLabel = (lv) => ({
+  high: '高风险',
+  medium: '中风险',
+  low: '低风险'
+}[lv] || lv || '提示')
+
+// AI 诊断结果在模板内直接使用 ai.risks / ai.suggestions 渲染分栏
+// （替代 v3.9 之前的打字机轮播）
 
 // ---- 数据加载：signal + in-flight dedup ----
 let abortCtrl = null
@@ -311,6 +380,17 @@ onMounted(() => {
   loadAi()
   overviewTimer = setInterval(load, 60000)
   aiTimer = setInterval(loadAi, 90000)
+  // 如果当前路由是大屏路由（直链 / 刷新 / 浏览器后退），自动 requestFullscreen
+  if (isScreenRoute.value && !getFullscreenElement()) {
+    setTimeout(async () => {
+      try {
+        const el = document.documentElement
+        await requestFullscreen(el)
+      } catch (e) { console.warn('auto requestFullscreen failed:', e) }
+    }, 80)
+  }
+  document.addEventListener('fullscreenchange', onFullscreenChange)
+  document.addEventListener('webkitfullscreenchange', onFullscreenChange)
 })
 
 onBeforeUnmount(() => {
@@ -319,13 +399,22 @@ onBeforeUnmount(() => {
   clearInterval(aiTimer)
   stopTyper()
   abortCtrl?.abort()
+  document.removeEventListener('fullscreenchange', onFullscreenChange)
+  document.removeEventListener('webkitfullscreenchange', onFullscreenChange)
 })
 </script>
 
 
 <style scoped lang="scss">
 /* demo1 同款：径向渐变 + 玻璃感面板 + 蓝色青光 */
-/* v3.6：扁平 /dashboard 路由，不再嵌 Layout，去掉负 margin 与 ds-full 分支 */
+/* v3.10：双路由共用 + 修正 Chrome 横向滚动 / sidebar 遮挡
+ * - 默认（嵌 Layout，/dashboard/index）：width: 100% 撑满 AppMain 主区，跟其他业务页一致
+ *   ❌ v3.8/v3.9 hack `margin: 0 calc(50% - 50vw)` 让 .ds 强行溢出主区到 100vw，
+ *      Chrome 严格按 spec 出现 body 横向滚动条 + 左边被 sidebar 盖住（Safari 行为不一致掩盖问题）
+ *   ✅ v3.10 改成 `width: 100%`：暗色背景只到 Layout 主区边界，不会被 sidebar 遮挡，没有横向溢出
+ *      「暗色背景贯穿屏幕边缘」只属于真·大屏形态（路由 /dashboard/screen）
+ * - 真·大屏（/dashboard/screen，顶级路由）：min-height: 100vh + margin: 0 占满整页
+ */
 .ds {
   background:
     radial-gradient(1200px 600px at 50% -10%, rgba(28, 155, 230, 0.18), transparent 60%),
@@ -334,9 +423,26 @@ onBeforeUnmount(() => {
   color: #cfe6ff;
   font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
   box-sizing: border-box;
+  /* v3.10：width: 100% 撑满 AppMain 主区，不溢出、不被 sidebar 遮挡 */
+  width: 100%;
   margin: 0;
   padding: 14px 20px;
+}
+
+.ds.is-fullscreen {
+  /* v3.10：全屏形态仍走 100vh + margin: 0，路由 /dashboard/screen 顶级渲染 */
+  margin: 0;
   min-height: 100vh;
+}
+
+.fullscreen-toggle {
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  color: #cfe6ff;
+}
+.fullscreen-toggle:hover {
+  color: #2de1c2;
 }
 
 /* 头部 */
