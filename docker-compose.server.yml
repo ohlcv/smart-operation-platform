@@ -61,11 +61,7 @@ services:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: ruoyi-fastapi
     volumes:
-      - ./ruoyi-fastapi-backend/sql/ruoyi-fastapi.sql:/docker-entrypoint-initdb.d/01-ruoyi-fastapi.sql
-      - ./ruoyi-fastapi-backend/sql/biz_init.sql:/docker-entrypoint-initdb.d/02-biz-init.sql
-      - ./ruoyi-fastapi-backend/sql/biz_menus_roles_init.sql:/docker-entrypoint-initdb.d/03-biz-menus-roles.sql
-      - ./ruoyi-fastapi-backend/sql/dashboard_v3_3_init.sql:/docker-entrypoint-initdb.d/04-dashboard-v3-3.sql
-      - ./ruoyi-fastapi-backend/sql/approval_init.sql:/docker-entrypoint-initdb.d/05-approval-init.sql
+      - ./ruoyi-fastapi-backend/sql/00-bootstrap.sql:/docker-entrypoint-initdb.d/00-bootstrap.sql
       - ./mysql-conf/charset.cnf:/etc/mysql/conf.d/charset.cnf:ro
       - mysql-data:/var/lib/mysql
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci --skip-character-set-client-handshake=1

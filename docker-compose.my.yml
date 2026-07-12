@@ -42,12 +42,9 @@ services:
     ports:
       - "13306:3306"
     volumes:
-      - ./ruoyi-fastapi-backend/sql/ruoyi-fastapi.sql:/docker-entrypoint-initdb.d/01-ruoyi-fastapi.sql
-      - ./ruoyi-fastapi-backend/sql/biz_init.sql:/docker-entrypoint-initdb.d/02-biz-init.sql
-      - ./ruoyi-fastapi-backend/sql/biz_menus_roles_init.sql:/docker-entrypoint-initdb.d/03-biz-menus-roles.sql
-      - ./ruoyi-fastapi-backend/sql/dashboard_v3_3_init.sql:/docker-entrypoint-initdb.d/04-dashboard-v3-3.sql
-      - ./ruoyi-fastapi-backend/sql/approval_init.sql:/docker-entrypoint-initdb.d/05-approval-init.sql
+      - ./ruoyi-fastapi-backend/sql/00-bootstrap.sql:/docker-entrypoint-initdb.d/00-bootstrap.sql
       - ./mysql-conf/charset.cnf:/etc/mysql/conf.d/charset.cnf:ro
+      - mysql-data:/var/lib/mysql
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci --skip-character-set-client-handshake=1
     networks:
       - ruoyi-network
@@ -63,6 +60,8 @@ services:
     container_name: ruoyi-redis
     ports:
       - "16379:6379"
+    volumes:
+      - redis-data:/data
     networks:
       - ruoyi-network
     healthcheck:
@@ -76,3 +75,11 @@ networks:
   ruoyi-network:
     name: ruoyi-network
     driver: bridge
+
+# 数据持久化（stop-dev.sh --keep-data 时保留；不加 --keep-data 时 docker compose down -v 会清理）
+# 命名加 ruoyi-local 前缀，避免和生产环境（smart-ops-*）冲突
+volumes:
+  mysql-data:
+    name: ruoyi-local-mysql-data
+  redis-data:
+    name: ruoyi-local-redis-data

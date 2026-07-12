@@ -1,14 +1,15 @@
 #!/bin/bash
 # =============================================================================
 # RuoYi FastAPI 停止脚本
-#   - 删除所有容器（MySQL/Redis/前端/后端）
-#   - 停止所有本地进程
+#   - 默认：删容器 + 删 volume + 删 network（不删 image）
+#   - --keep-data：删容器 + 删 network（保留 volume，MySQL 数据不丢）
 # =============================================================================
 
 set -e
 
 PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
 BACKEND_DIR="$PROJECT_ROOT/ruoyi-fastapi-backend"
+DOCKER_COMPOSE_FILE="$PROJECT_ROOT/docker-compose.my.yml"
 
 # ---- 颜色 ----
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -18,14 +19,16 @@ log_info()  { echo -e "${GREEN}[INFO]${NC}  $1"; }
 log_warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_step()  { echo -e "${CYAN}[STEP]${NC}  $1"; }
 
-# ---- 容器列表 ----
-DEV_CONTAINERS="ruoyi-mysql ruoyi-redis ruoyi-frontend ruoyi-backend-my ruoyi-pg"
-
 # =============================================================================
-# Docker 容器停止
+# Docker 停止（用 docker compose down，删容器 + network）
+#   --keep-data：保留 volume，MySQL/Redis 数据不丢
+#   默认（不带 --keep-data）：删 volume，数据重置
+#   都不删 image（用户在 start-dev.sh --docker 里要求：复用 image 不重 build）
 # =============================================================================
 stop_containers() {
-  log_step "删除 Docker 容器..."
+  local keep_data=$1
+  log_step "停止并删除 Docker 容器 + network（不删 image）..."
+
   if ! command -v docker &> /dev/null; then
     log_warn "  Docker 未安装，跳过"
     return
@@ -34,15 +37,33 @@ stop_containers() {
     log_warn "  Docker 守护进程未运行，跳过容器停止"
     return
   fi
-  local stopped=0
-  for name in $DEV_CONTAINERS; do
-    if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q "^${name}$"; then
-      log_info "  删除容器: $name"
-      docker rm -f "$name" > /dev/null 2>&1
-      stopped=1
+
+  # docker compose 优先（一次性清容器+network，对 orphan service 也清）
+  if [ -f "$DOCKER_COMPOSE_FILE" ]; then
+    cd "$PROJECT_ROOT"
+    if [ "$keep_data" = "1" ]; then
+      log_info "  [保留数据] docker compose down --remove-orphans"
+      docker compose -f "$DOCKER_COMPOSE_FILE" down --remove-orphans 2>&1 | sed 's/^/    /' || true
+    else
+      log_info "  [默认删数据] docker compose down -v --remove-orphans"
+      docker compose -f "$DOCKER_COMPOSE_FILE" down -v --remove-orphans 2>&1 | sed 's/^/    /' || true
     fi
-  done
-  [ $stopped -eq 0 ] && log_info "  无需删除的容器"
+  else
+    log_warn "  找不到 $DOCKER_COMPOSE_FILE，回退手写循环..."
+    for name in ruoyi-mysql ruoyi-redis ruoyi-frontend ruoyi-backend-my; do
+      if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q "^${name}$"; then
+        log_info "  删除容器: $name"
+        docker rm -f "$name" > /dev/null 2>&1
+      fi
+    done
+    # 删本项目专属网络（不影响其他项目同名网络）
+    if docker network ls --format '{{.Name}}' 2>/dev/null | grep -qx "ruoyi-network"; then
+      log_info "  删除网络: ruoyi-network"
+      docker network rm ruoyi-network > /dev/null 2>&1 || true
+    fi
+  fi
+
+  log_info "  完成（image 已保留，下次 start-dev.sh --docker 将复用）"
 }
 
 # =============================================================================
@@ -71,9 +92,12 @@ stop_by_port() {
 
 stop_local_processes() {
   log_step "停止本地进程..."
-  stop_by_port 9099    "后端 (uvicorn)"
-  stop_by_port 8080    "前端 dev server"
-  stop_by_port 12580 "前端 dev server"
+  stop_by_port 9099   "后端 (uvicorn)"
+  stop_by_port 8080   "前端 dev server (本地模式)"
+  stop_by_port 12580  "前端 dev server (容器模式端口)"
+  # Docker 宿主端口（容器停止后一般自动释放，但防僵尸进程漏配）
+  stop_by_port 13306  "MySQL host port"
+  stop_by_port 16379  "Redis host port"
   log_info "  完成"
 }
 
@@ -97,15 +121,37 @@ clean_pid() {
 # 入口
 # =============================================================================
 main() {
+  KEEP_DATA=0
+  for arg in "$@"; do
+    case $arg in
+      --keep-data|-k) KEEP_DATA=1 ;;
+      --help|-h)
+        echo "用法: $0 [选项]"
+        echo ""
+        echo "  (默认)         删容器 + 删 volume + 删 network + 留 image"
+        echo "                 MySQL 数据会被清空，下次启动走 initdb.d 重灌"
+        echo "  --keep-data    删容器 + 删 network，保留 volume"
+        echo "                 MySQL 数据不丢，下次启动 docker compose up -d 直接复用"
+        echo "  --help         显示帮助"
+        exit 0
+        ;;
+    esac
+  done
+
   echo ""
   echo "========================================"
   echo -e "${BOLD}${RED}  停止开发环境${NC}"
+  if [ $KEEP_DATA -eq 1 ]; then
+    echo -e "  ${CYAN}模式: 保留数据 (volume)${NC}"
+  else
+    echo -e "  ${CYAN}模式: 清空数据 (volume)${NC}"
+  fi
   echo "========================================"
   echo ""
 
   stop_local_processes
   clean_pid
-  stop_containers
+  stop_containers $KEEP_DATA
 
   echo ""
   echo "========================================"

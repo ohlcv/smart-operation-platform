@@ -45,9 +45,6 @@ services:
       POSTGRES_INITDB_ARGS: --encoding=UTF8 --lc-collate=C --lc-ctype=C
     ports:
       - "15433:5432"
-    volumes:
-      - ../ruoyi-fastapi-backend/sql/ruoyi-fastapi-pg.sql:/docker-entrypoint-initdb.d/01-ruoyi-fastapi-pg.sql
-      - ./disable_captcha.sql:/docker-entrypoint-initdb.d/02-disable-captcha.sql
     networks:
       - ruoyi-network-test
     healthcheck:

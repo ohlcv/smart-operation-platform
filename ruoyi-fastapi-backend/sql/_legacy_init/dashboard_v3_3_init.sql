@@ -145,7 +145,10 @@ PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- 7) 验证
 SELECT '-- 渠道表位置字段 --' AS ' ';
-SELECT channel_code, channel_name, province, city, lng, lat FROM biz_channel;
+SET @sql := IF(@has_biz_channel = 0,
+  'SELECT ''biz_channel 不存在，跳过渠道表验证'' AS msg',
+  'SELECT channel_code, channel_name, province, city, lng, lat FROM biz_channel');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 SELECT '-- 合同 province 字段 --' AS ' ';
 SELECT COUNT(*) AS contract_with_province FROM biz_contract WHERE province IS NOT NULL;

@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from common.constant import LockConstant
 from common.router import auto_register_routers
 from config.env import AppConfig
-from config.get_db import close_async_engine, init_create_table
+from config.get_db import close_async_engine, init_create_table, run_alembic_upgrade
 from config.get_redis import RedisUtil
 from config.get_scheduler import SchedulerUtil
 from exceptions.handle import handle_exception
@@ -91,6 +91,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         if startup_log_enabled:
             worship()
         TransportKeyProvider.validate_runtime_configuration()
+        # v4.0：先跑 alembic upgrade head 应用所有未执行的 schema/seed 迁移
+        await run_alembic_upgrade()
         await init_create_table()
         await RedisUtil.check_redis_connection(app.state.redis, log_enabled=startup_log_enabled)
         await RedisUtil.init_sys_dict(app.state.redis)

@@ -43,7 +43,8 @@ services:
     ports:
       - "15432:5432"
     volumes:
-      - ./ruoyi-fastapi-backend/sql/ruoyi-fastapi-pg.sql:/docker-entrypoint-initdb.d/ruoyi-fastapi-pg.sql
+      - ./ruoyi-fastapi-backend/sql/ruoyi-fastapi-pg.sql:/docker-entrypoint-initdb.d/01-ruoyi-fastapi-pg.sql
+      - pg-data:/var/lib/postgresql/data
     networks:
       - ruoyi-network
     healthcheck:
@@ -58,6 +59,8 @@ services:
     container_name: ruoyi-redis
     ports:
       - "16379:6379"
+    volumes:
+      - redis-data:/data
     networks:
       - ruoyi-network
     healthcheck:
@@ -71,3 +74,11 @@ networks:
   ruoyi-network:
     name: ruoyi-network
     driver: bridge
+
+# 数据持久化（stop-dev.sh --keep-data 时保留；不加 --keep-data 时 docker compose down -v 会清理）
+# 命名加 ruoyi-local 前缀，避免和生产环境（smart-ops-*）冲突
+volumes:
+  pg-data:
+    name: ruoyi-local-pg-data
+  redis-data:
+    name: ruoyi-local-redis-data

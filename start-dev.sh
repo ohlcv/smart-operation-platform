@@ -171,12 +171,7 @@ run_local_mode() {
         --network ruoyi-network \
         --restart unless-stopped \
         $([ "$name" = "ruoyi-mysql" ] && echo "-e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=ruoyi-fastapi -p 13306:3306 \
-          -v $PROJECT_ROOT/ruoyi-fastapi-backend/sql/ruoyi-fastapi.sql:/docker-entrypoint-initdb.d/01-ruoyi-fastapi.sql \
-          -v $PROJECT_ROOT/ruoyi-fastapi-backend/sql/biz_init.sql:/docker-entrypoint-initdb.d/02-biz-init.sql \
-          -v $PROJECT_ROOT/ruoyi-fastapi-backend/sql/biz_menus_roles_init.sql:/docker-entrypoint-initdb.d/03-biz-menus-roles.sql \
-          -v $PROJECT_ROOT/ruoyi-fastapi-backend/sql/biz_channel_init.sql:/docker-entrypoint-initdb.d/03a-biz-channel-init.sql \
-          -v $PROJECT_ROOT/ruoyi-fastapi-backend/sql/dashboard_v3_3_init.sql:/docker-entrypoint-initdb.d/04-dashboard-v3-3.sql \
-          -v $PROJECT_ROOT/ruoyi-fastapi-backend/sql/approval_init.sql:/docker-entrypoint-initdb.d/05-approval-init.sql \
+          -v $PROJECT_ROOT/ruoyi-fastapi-backend/sql/00-bootstrap.sql:/docker-entrypoint-initdb.d/00-bootstrap.sql \
           -v $PROJECT_ROOT/mysql-conf/charset.cnf:/etc/mysql/conf.d/charset.cnf:ro" || echo "-p 16379:6379") \
         $([ "$name" = "ruoyi-mysql" ] && echo "mysql:8.0 --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci --skip-character-set-client-handshake=1" || echo "redis:latest")
     fi
@@ -199,47 +194,22 @@ run_local_mode() {
   sleep 2
   log_info "  MySQL + Redis 就绪 ✓"
 
-  # ---- 增量 SQL：已建库时手动跑（initdb.d 只在首次启动生效） ----
+  # ---- schema/seed 迁移状态展示（v4.0 起由 Alembic 接管） ----
+  # - 删卷重建时，MySQL 容器首次启动会跑 00-bootstrap.sql 自动 CREATE DATABASE
+  # - backend 启动时 server.py 会自动执行 alembic upgrade head，应用所有未执行的迁移
+  # - 这里打印当前数据库的 alembic 版本，便于排查「未应用」/「已 latest」
   if is_container_running "ruoyi-mysql"; then
-    # 探测 biz_channel.province 列是否存在，不存在就说明 v3.3 增量未跑
-    if ! LANG=C docker exec ruoyi-mysql mysql --default-character-set=utf8mb4 \
-        -uroot -proot -N -B ruoyi-fastapi \
-        -e "SHOW COLUMNS FROM biz_channel LIKE 'province'" 2>/dev/null \
-        | grep -q '^province'; then
-      log_warn "  检测到 biz_channel.province 缺失，自动执行 v3.3 增量脚本..."
-      if ! LANG=C docker exec -i ruoyi-mysql mysql --default-character-set=utf8mb4 \
-          -uroot -proot ruoyi-fastapi \
-          < "$BACKEND_DIR/sql/dashboard_v3_3_init.sql" >/dev/null 2>&1; then
-        log_error "  v3.3 增量脚本执行失败，请手动跑: docker exec -i ruoyi-mysql mysql -uroot -proot ruoyi-fastapi < $BACKEND_DIR/sql/dashboard_v3_3_init.sql"
-        exit 1
-      fi
+    # 仅探测 ruoyi-fastapi 数据库是否存在（避免 .env 中无密码等连接问题导致整个启动卡住）
+    if LANG=C docker exec ruoyi-mysql mysql --default-character-set=utf8mb4 \
+        -uroot -proot -N -B \
+        -e "SHOW DATABASES LIKE 'ruoyi-fastapi'" 2>/dev/null | grep -q '^ruoyi-fastapi$'; then
+      log_info "  数据库 ruoyi-fastapi: 已建 ✓"
+      log_info "  schema/seed 演进将由 backend 启动时 alembic upgrade head 自动应用 ✓"
+      log_info "  （查看当前版本: cd ruoyi-fastapi-backend && alembic -c alembic.ini current）"
     else
-      log_info "  v3.3 增量已应用 ✓"
-    fi
-
-    # 探测 sys_user.signature 列是否存在，不存在就说明 v3.4 approval 增量未跑
-    if ! LANG=C docker exec ruoyi-mysql mysql --default-character-set=utf8mb4 \
-        -uroot -proot -N -B ruoyi-fastapi \
-        -e "SHOW COLUMNS FROM sys_user LIKE 'signature'" 2>/dev/null \
-        | grep -q '^signature'; then
-      log_warn "  检测到 sys_user.signature 缺失，自动执行 v3.4 approval 增量脚本..."
-      if ! LANG=C docker exec -i ruoyi-mysql mysql --default-character-set=utf8mb4 \
-          -uroot -proot ruoyi-fastapi \
-          < "$BACKEND_DIR/sql/approval_init.sql" >/dev/null 2>&1; then
-        log_error "  v3.4 approval 增量脚本执行失败，请手动跑: docker exec -i ruoyi-mysql mysql -uroot -proot ruoyi-fastapi < $BACKEND_DIR/sql/approval_init.sql"
-        exit 1
-      fi
-      # 二次校验：脚本声称成功后必须真能看到列
-      if ! LANG=C docker exec ruoyi-mysql mysql --default-character-set=utf8mb4 \
-          -uroot -proot -N -B ruoyi-fastapi \
-          -e "SHOW COLUMNS FROM sys_user LIKE 'signature'" 2>/dev/null \
-          | grep -q '^signature'; then
-        log_error "  v3.4 approval 脚本执行成功但 sys_user.signature 仍未创建，疑似 SQL 语法不兼容，请检查 approval_init.sql §0"
-        exit 1
-      fi
-      log_info "  v3.4 approval 增量已应用 ✓"
-    else
-      log_info "  v3.4 approval 增量已应用 ✓"
+      log_warn "  数据库 ruoyi-fastapi 不存在！可能原因："
+      log_warn "    1) MySQL data 卷非首次启动（initdb.d 仅首次启动生效）→ 需 docker rm -f ruoyi-mysql + 删卷重建"
+      log_warn "    2) 或者：手动 CREATE DATABASE ruoyi-fastapi（alembic 会自动建表）"
     fi
   fi
 
@@ -339,6 +309,17 @@ run_local_mode() {
     log_info "  后端就绪 (PID=$BACKEND_PID) ✓"
   fi
 
+  # ---- 展示 alembic upgrade head 结果（从 backend.log 抓取） ----
+  sleep 2
+  if [ -f "$BACKEND_DIR/logs/backend.log" ]; then
+    alembic_lines=$(grep -E "alembic upgrade head|Running upgrade|^✅.*alembic|^❌.*alembic" \
+      "$BACKEND_DIR/logs/backend.log" | head -10)
+    if [ -n "$alembic_lines" ]; then
+      log_info "  ── Alembic 迁移结果 ──"
+      echo "$alembic_lines" | sed 's/^/    /'
+    fi
+  fi
+
   # ---- 启动前端 ----
   log_step "3/3 - 启动前端..."
   stop_local_by_port 8080 "前端"
@@ -393,13 +374,20 @@ run_docker_mode() {
     docker network create ruoyi-network > /dev/null 2>&1
   fi
 
-  # ---- 清理并重建 ----
-  log_step "重建 Docker 容器（删除旧容器 + 重新创建）..."
+  # ---- 清理并启动 ----
+  log_step "清理旧容器并启动（不重建镜像）..."
   stop_all_containers
 
-  log_info "  拉取 / 构建镜像（首次较慢）..."
   cd "$PROJECT_ROOT"
-  docker compose -f "$DOCKER_COMPOSE_FILE" up -d --build
+  # 默认复用已有镜像：docker compose up -d 看到本地有 image tag 就直接起容器
+  #   - 镜像存在 → 秒级起容器
+  #   - 镜像缺失 → 报错提示
+  # 改了代码想强制重建：手动 docker compose -f $DOCKER_COMPOSE_FILE build --no-cache
+  log_info "  启动容器（复用本地镜像）..."
+  if ! docker compose -f "$DOCKER_COMPOSE_FILE" up -d; then
+    log_warn "  启动失败（很可能是镜像不存在），尝试自动构建一次..."
+    docker compose -f "$DOCKER_COMPOSE_FILE" up -d --build
+  fi
 
   # 等待容器就绪
   log_info "等待服务启动..."
@@ -440,10 +428,46 @@ run_docker_mode() {
   echo "  MySQL:    localhost:13306"
   echo "  Redis:    localhost:16379"
   echo ""
-  echo "  查看日志: docker compose -f $DOCKER_COMPOSE_FILE logs -f"
-  echo "  停止服务: docker compose -f $DOCKER_COMPOSE_FILE down"
+  echo "  查看日志:   docker compose -f $DOCKER_COMPOSE_FILE logs -f"
+  echo "  停止服务:   docker compose -f $DOCKER_COMPOSE_FILE down"
+  echo "  重建镜像:   docker compose -f $DOCKER_COMPOSE_FILE build --no-cache"
+  echo "                （改代码/Dockerfile 后必须手动重建，脚本不会自动 build）"
   echo "============================================"
 }
+
+# =============================================================================
+# 模式 C：停止所有服务
+# =============================================================================
+stop_all_mode() {
+  log_mode ""
+  log_mode "========================================"
+  log_mode "  停止所有服务"
+  log_mode "========================================"
+  echo ""
+
+  check_cmd docker
+
+  log_step "1/2 - 停止 Docker 容器..."
+  cd "$PROJECT_ROOT"
+  if docker compose -f "$DOCKER_COMPOSE_FILE" ps 2>/dev/null | grep -q ruoyi; then
+    docker compose -f "$DOCKER_COMPOSE_FILE" down
+  fi
+  stop_all_containers
+  echo "  ✓ 容器清理完毕"
+
+  log_step "2/2 - 停止本地进程..."
+  stop_local_processes
+  echo "  ✓ 本地进程清理完毕"
+
+  echo ""
+  echo "============================================"
+  log_mode "  全部停止完成"
+  echo "============================================"
+  echo "  数据卷保留（不会丢数据）。如需彻底清理："
+  echo "    docker volume rm \$(docker volume ls -q | grep ruoyi)"
+  echo "============================================"
+}
+
 
 # =============================================================================
 # 入口
@@ -453,6 +477,7 @@ main() {
   for arg in "$@"; do
     case $arg in
       --docker|-d) MODE="docker" ;;
+      --stop|-s)   MODE="stop" ;;
       --help|-h)   MODE="help" ;;
       *)           MODE="local" ;;
     esac
@@ -462,17 +487,18 @@ main() {
     echo "用法: $0 [选项]"
     echo ""
     echo "选项:"
-    echo "  (默认)      本地开发模式：Docker MySQL/Redis + 本地前后端"
-    echo "  --docker    Docker 容器模式：全容器，模拟生产环境"
-    echo "  --help      显示帮助"
+    echo "  (默认)        本地开发模式：Docker MySQL/Redis + 本地前后端"
+    echo "  --docker      Docker 容器模式：全容器，模拟生产环境"
+    echo "  --stop        停止所有服务（容器 + 本地进程）"
+    echo "  --help        显示帮助"
     exit 0
   fi
 
-  if [ "$MODE" = "docker" ]; then
-    run_docker_mode
-  else
-    run_local_mode
-  fi
+  case "$MODE" in
+    docker) run_docker_mode ;;
+    stop)   stop_all_mode ;;
+    *)      run_local_mode ;;
+  esac
 }
 
 main "$@"
