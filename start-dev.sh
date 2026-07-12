@@ -126,6 +126,48 @@ clean_pid() {
   fi
 }
 
+# ---- 清理被污染的 ruoyi-network ----
+# 检测同名网络 ruoyi-network 是否存在：
+#   - 不存在：直接返回
+#   - 存在且是 compose 创建（带 com.docker.compose.network=ruoyi-network 标签）：保留
+#   - 存在但是孤儿（无标签，可能是裸 docker network create 出来的）：删，让 compose 重建
+#   - 存在但被容器占用：拒绝并提示，让用户手动处理
+ensure_clean_ruoyi_network() {
+  local net_name="ruoyi-network"
+
+  # 网络不存在：什么都不做，让 compose 自己创建
+  if ! docker network ls --format '{{.Name}}' 2>/dev/null | grep -qx "$net_name"; then
+    return 0
+  fi
+
+  # 网络存在，检查是否有容器占用
+  local using
+  using=$(docker network inspect -f '{{range .Containers}}{{.Name}} {{end}}' "$net_name" 2>/dev/null | xargs)
+  if [ -n "$using" ]; then
+    log_warn "  $net_name 仍被容器占用: $using"
+    log_warn "    请先停掉这些容器（生产容器不要用本脚本停），再重试"
+    return 1
+  fi
+
+  # 网络存在，检查是否有 compose 标签
+  local label
+  label=$(docker network inspect -f '{{index .Labels "com.docker.compose.network"}}' "$net_name" 2>/dev/null || echo "")
+  if [ -n "$label" ]; then
+    # 是 compose 创建的（如本 compose 之前 down 残留），保留
+    return 0
+  fi
+
+  # 孤儿网络（无标签），自动清理
+  log_warn "  发现孤儿网络 $net_name（无 compose 标签，可能是裸 docker network create 创建）"
+  log_info "  自动删除，让 docker compose 重新创建..."
+  docker network rm "$net_name" > /dev/null 2>&1 || {
+    log_error "  删除孤儿网络失败，请手动执行: docker network rm $net_name"
+    return 1
+  }
+  log_info "  孤儿网络已清理 ✓"
+  return 0
+}
+
 # =============================================================================
 # 模式 A：本地开发模式
 #   - Docker: MySQL + Redis
@@ -153,10 +195,17 @@ run_local_mode() {
   done
   echo "  ✓ 无冲突"
 
-  # ---- 创建 Docker 网络（不存在则创建） ----
+# ---- 网络准备 ----
+  # 关键设计：local 模式用裸 `docker run --network ruoyi-network` 启动 MySQL/Redis，
+  # 所以网络必须在脚本里提前建好。但必须带 compose 标签，否则下次 docker mode 的
+  # `docker compose up` 会拒绝（报 "incorrect label"）。
+  ensure_clean_ruoyi_network
   if ! docker network ls --format '{{.Name}}' 2>/dev/null | grep -qx "ruoyi-network"; then
-    log_info "  创建 ruoyi-network..."
-    docker network create ruoyi-network > /dev/null 2>&1
+    log_info "  创建 ruoyi-network（带 compose 标签）..."
+    docker network create \
+      --label com.docker.compose.project=ruoyi \
+      --label com.docker.compose.network=ruoyi-network \
+      ruoyi-network > /dev/null 2>&1
   fi
 
   # ---- 启动 MySQL + Redis ----
@@ -368,11 +417,11 @@ run_docker_mode() {
   stop_local_processes
   echo "  ✓ 无冲突"
 
-  # ---- 创建 Docker 网络（不存在则创建） ----
-  if ! docker network ls --format '{{.Name}}' 2>/dev/null | grep -qx "ruoyi-network"; then
-    log_info "  创建 ruoyi-network..."
-    docker network create ruoyi-network > /dev/null 2>&1
-  fi
+# ---- 网络准备 ----
+  # 关键设计：docker 模式让 docker compose 自己创建/管理网络（带 compose 标签）。
+  # 脚本只负责清理"无标签孤儿网络"（老版本脚本裸 docker network create 留下的），
+  # 真正的网络创建交给 `docker compose up`。
+  ensure_clean_ruoyi_network
 
   # ---- 清理并启动 ----
   log_step "清理旧容器并启动（不重建镜像）..."

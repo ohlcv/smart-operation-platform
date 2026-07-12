@@ -71,13 +71,13 @@ services:
       retries: 30
 
 # 网络配置
-# external: true —— 网络由外部管理（可能由生产 compose 创建，也可能运维手工建），
-# docker compose up/down 不再创建/删除它，避免与生产 compose (docker-compose.server.yml)
-# 抢同名 ruoyi-network 的冲突。
+# 关键设计：网络名 ruoyi-network 必须让 docker compose 自己创建（带 com.docker.compose.network 标签），
+# 不能由外部脚本/裸 docker network create 创建（那样没标签，会被 compose 拒绝）。
+# 与生产 docker-compose.server.yml 同名问题：通过启动时检测"无标签孤儿网络"并自动清理解决。
 networks:
   ruoyi-network:
     name: ruoyi-network
-    external: true
+    driver: bridge
 
 # 数据持久化（stop-dev.sh --keep-data 时保留；不加 --keep-data 时 docker compose down -v 会清理）
 # 命名加 ruoyi-local 前缀，避免和生产环境（smart-ops-*）冲突
