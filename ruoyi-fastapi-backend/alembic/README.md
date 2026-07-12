@@ -11,10 +11,8 @@
 │  Backend 启动                                                 │
 │  └─ server.py:run_alembic_upgrade()                         │
 │     └─ alembic upgrade head                                 │
-│        ├─ 0001_baseline_sys_ruoyi    RuoYi 原生 sys_*       │
-│        ├─ 0002_baseline_biz          业务 8 张表             │
-│        ├─ 0003_seed_sys              sys 种子（角色/字典/用户）│
-│        └─ 0004_seed_biz              业务种子                │
+│        ├─ 0001_baseline_all      sys + biz 全套表结构       │
+│        └─ 0002_seed_all          sys + biz 全部种子数据     │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -39,7 +37,7 @@ alembic -c alembic.ini upgrade head
 alembic -c alembic.ini downgrade -1
 
 # 回退到指定版本
-alembic -c alembic.ini downgrade 0001_baseline_sys_ruoyi
+alembic -c alembic.ini downgrade 0001_baseline_all
 
 # 自动生成新迁移（基于 ORM diff）
 alembic -c alembic.ini revision --autogenerate -m "add xxx_field to biz_yyy"
@@ -105,7 +103,7 @@ def upgrade():
 ```bash
 # alembic_version 表错乱（极少见）
 mysql -uroot -proot ruoyi-fastapi \
-  -e "UPDATE alembic_version SET version_num='0001_baseline_sys_ruoyi'"
+  -e "UPDATE alembic_version SET version_num='0001_baseline_all'"
 
 # 删卷重建（终极方案）
 docker compose -f docker-compose.my.yml down -v
