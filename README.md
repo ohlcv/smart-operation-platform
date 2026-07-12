@@ -128,6 +128,8 @@ docker compose -f docker-compose.pg.yml up -d --build   # PostgreSQL 版本
 
 > ⚠️ 默认未做数据卷持久化配置，请自行在 `docker-compose.*.yml` 顶部添加 `volumes` 段。
 
+> 💡 **改代码后再次跑 `./start-dev.sh --docker` 即可**：脚本内部使用 `up -d --build`，Docker 会按构建上下文（源码 + Dockerfile）hash 判断是否需要 rebuild —— 代码没变就秒级复用镜像，变了的镜像才真 rebuild。强制全量重建：`docker compose -f docker-compose.my.yml build --no-cache`。
+
 ## 📂 顶层目录
 
 ```

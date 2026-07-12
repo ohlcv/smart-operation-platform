@@ -2,7 +2,15 @@
 # =============================================================================
 # RuoYi FastAPI 启动脚本
 #   ./start-dev.sh            本地开发模式（本地前后端 + Docker MySQL/Redis）
-#   ./start-dev.sh --docker   Docker 容器模式（全容器，模拟生产）
+#   ./start-dev.sh --docker   Docker 容器模式（全容器，模拟生产，按需 build）
+#
+# 改代码后的行为约定：
+#   - 本地模式（默认）：前端 Vite HMR 热更新，后端 uvicorn --reload 自动重载
+#     → 改前端代码保存即生效；改后端代码保存即生效
+#   - Docker 模式（--docker）：脚本用 `docker compose up -d --build` 启动，
+#     Docker 按构建上下文 hash 判断是否需要 rebuild；前端 nginx serve
+#     构建产物不是热更新 → 必须重新跑 start-dev.sh --docker 触发 rebuild
+#     → 改前端/后端代码后再次执行即可，无需手动 `build --no-cache`
 # =============================================================================
 
 set -e
@@ -424,31 +432,30 @@ run_docker_mode() {
   ensure_clean_ruoyi_network
 
   # ---- 清理并启动 ----
-  log_step "清理旧容器并启动（不重建镜像）..."
+  # docker compose build 自带 hash 缓存：构建上下文（代码+Dockerfile）未变就秒级复用镜像，
+  # 改了才会真正 rebuild。所以这里用 --build 既"快"又"对"：
+  #   - 未改代码 → 复用本地镜像（≈`up -d`，秒级）
+  #   - 改了代码 → 自动 rebuild（不需要手动 `build --no-cache`）
+  # 这与 README.md 第 122-126 行 "Docker Compose（生产 / 演示）" 推荐用法一致。
+  log_step "清理旧容器并启动（按需重建镜像）..."
   stop_all_containers
 
   cd "$PROJECT_ROOT"
-  # 默认复用已有镜像：docker compose up -d 看到本地有 image tag 就直接起容器
-  #   - 镜像存在 → 秒级起容器
-  #   - 镜像缺失 → 报错提示
-  # 改了代码想强制重建：手动 docker compose -f $DOCKER_COMPOSE_FILE build --no-cache
-  log_info "  启动容器（复用本地镜像）..."
+  log_info "  启动容器..."
+  # 实时输出 compose 进度到终端（tee），同时保留日志文件用于事后回看。
+  # 这样 rebuild 时用户能看到 pip 在下载哪一步；没 rebuild 时也能看到
+  # Pulling/Extracting/Starting 的实时状态，不会误以为"卡住"。
   local up_log="/tmp/start-dev-up-$$.log"
-  if ! docker compose -f "$DOCKER_COMPOSE_FILE" up -d > "$up_log" 2>&1; then
-    if grep -qE "manifest for .* not found|no such image|image not found" "$up_log"; then
-      log_warn "  镜像缺失，自动构建一次..."
-      docker compose -f "$DOCKER_COMPOSE_FILE" up -d --build
-    else
-      log_error "  启动失败，且非镜像缺失问题（原始日志见末尾）："
-      sed 's/^/    /' "$up_log"
-      log_error "  常见原因：网络 ruoyi-network 状态异常 / 端口冲突 / 配置错误 / 容器内应用崩"
-      log_error "  排查建议："
-      log_error "    1) docker network ls | grep ruoyi-network（确认网络存在）"
-      log_error "    2) bash scripts/cleanup-orphan-network.sh（清理孤儿网络）"
-      log_error "    3) docker compose -f $DOCKER_COMPOSE_FILE logs --tail=50 ruoyi-backend-my"
-      rm -f "$up_log"
-      exit 1
-    fi
+  if ! docker compose -f "$DOCKER_COMPOSE_FILE" up -d --build 2>&1 | tee "$up_log"; then
+    log_error "  启动失败（原始日志见末尾）："
+    sed 's/^/    /' "$up_log"
+    log_error "  常见原因：网络 ruoyi-network 状态异常 / 端口冲突 / 配置错误 / 容器内应用崩"
+    log_error "  排查建议："
+    log_error "    1) docker network ls | grep ruoyi-network（确认网络存在）"
+    log_error "    2) bash scripts/cleanup-orphan-network.sh（清理孤儿网络）"
+    log_error "    3) docker compose -f $DOCKER_COMPOSE_FILE logs --tail=50 ruoyi-backend-my"
+    rm -f "$up_log"
+    exit 1
   fi
   rm -f "$up_log"
 
@@ -493,8 +500,8 @@ run_docker_mode() {
   echo ""
   echo "  查看日志:   docker compose -f $DOCKER_COMPOSE_FILE logs -f"
   echo "  停止服务:   docker compose -f $DOCKER_COMPOSE_FILE down"
-  echo "  重建镜像:   docker compose -f $DOCKER_COMPOSE_FILE build --no-cache"
-  echo "                （改代码/Dockerfile 后必须手动重建，脚本不会自动 build）"
+  echo "  强制重建:   docker compose -f $DOCKER_COMPOSE_FILE build --no-cache"
+  echo "                （默认情况：改代码/Dockerfile 后下次启动会自动 rebuild，无需手动）"
   echo "============================================"
 }
 

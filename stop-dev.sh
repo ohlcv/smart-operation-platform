@@ -24,7 +24,8 @@ log_step()  { echo -e "${CYAN}[STEP]${NC}  $1"; }
 # Docker 停止（用 docker compose down，删容器 + 可选 volume）
 #   --keep-data：保留 volume，MySQL/Redis 数据不丢
 #   默认（不带 --keep-data）：删 volume，数据重置
-#   都不删 image（用户在 start-dev.sh --docker 里要求：复用 image 不重 build）
+#   都不删 image（start-dev.sh --docker 用 `up -d --build` 自动按需 rebuild，
+#                 这里删 image 等于强迫下次启动做全量 rebuild，没必要）
 #   都不删 ruoyi-network（它在 compose 中标了 external: true，
 #   可能由生产 compose (docker-compose.server.yml) 或运维创建，盲删会破坏生产）
 # =============================================================================
@@ -62,7 +63,7 @@ stop_containers() {
     # 网络 ruoyi-network 不再在此处删除（external: true，可能生产在用）
   fi
 
-  log_info "  完成（image / network 已保留，下次 start-dev.sh --docker 将复用）"
+  log_info "  完成（image / network 已保留）"
 }
 
 # =============================================================================
