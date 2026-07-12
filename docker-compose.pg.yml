@@ -70,10 +70,11 @@ services:
       retries: 30
 
 # 网络配置
+# external: true —— 同 docker-compose.my.yml，避免本地/生产抢同名 ruoyi-network
 networks:
   ruoyi-network:
     name: ruoyi-network
-    driver: bridge
+    external: true
 
 # 数据持久化（stop-dev.sh --keep-data 时保留；不加 --keep-data 时 docker compose down -v 会清理）
 # 命名加 ruoyi-local 前缀，避免和生产环境（smart-ops-*）冲突

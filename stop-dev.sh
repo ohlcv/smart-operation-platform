@@ -1,8 +1,9 @@
 #!/bin/bash
 # =============================================================================
 # RuoYi FastAPI 停止脚本
-#   - 默认：删容器 + 删 volume + 删 network（不删 image）
-#   - --keep-data：删容器 + 删 network（保留 volume，MySQL 数据不丢）
+#   - 默认：删容器 + 删 volume（不删 image，不删 network）
+#   - --keep-data：删容器，保留 volume（不删 image，不删 network）
+#   - 不删 network：compose 中标了 external: true，可能由生产 compose 或运维创建
 # =============================================================================
 
 set -e
@@ -20,14 +21,16 @@ log_warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_step()  { echo -e "${CYAN}[STEP]${NC}  $1"; }
 
 # =============================================================================
-# Docker 停止（用 docker compose down，删容器 + network）
+# Docker 停止（用 docker compose down，删容器 + 可选 volume）
 #   --keep-data：保留 volume，MySQL/Redis 数据不丢
 #   默认（不带 --keep-data）：删 volume，数据重置
 #   都不删 image（用户在 start-dev.sh --docker 里要求：复用 image 不重 build）
+#   都不删 ruoyi-network（它在 compose 中标了 external: true，
+#   可能由生产 compose (docker-compose.server.yml) 或运维创建，盲删会破坏生产）
 # =============================================================================
 stop_containers() {
   local keep_data=$1
-  log_step "停止并删除 Docker 容器 + network（不删 image）..."
+  log_step "停止并删除 Docker 容器（不删 image、不删 network）..."
 
   if ! command -v docker &> /dev/null; then
     log_warn "  Docker 未安装，跳过"
@@ -56,14 +59,10 @@ stop_containers() {
         docker rm -f "$name" > /dev/null 2>&1
       fi
     done
-    # 删本项目专属网络（不影响其他项目同名网络）
-    if docker network ls --format '{{.Name}}' 2>/dev/null | grep -qx "ruoyi-network"; then
-      log_info "  删除网络: ruoyi-network"
-      docker network rm ruoyi-network > /dev/null 2>&1 || true
-    fi
+    # 网络 ruoyi-network 不再在此处删除（external: true，可能生产在用）
   fi
 
-  log_info "  完成（image 已保留，下次 start-dev.sh --docker 将复用）"
+  log_info "  完成（image / network 已保留，下次 start-dev.sh --docker 将复用）"
 }
 
 # =============================================================================
@@ -128,9 +127,9 @@ main() {
       --help|-h)
         echo "用法: $0 [选项]"
         echo ""
-        echo "  (默认)         删容器 + 删 volume + 删 network + 留 image"
+        echo "  (默认)         删容器 + 删 volume + 留 image + 留 network"
         echo "                 MySQL 数据会被清空，下次启动走 initdb.d 重灌"
-        echo "  --keep-data    删容器 + 删 network，保留 volume"
+        echo "  --keep-data    删容器 + 留 volume + 留 image + 留 network"
         echo "                 MySQL 数据不丢，下次启动 docker compose up -d 直接复用"
         echo "  --help         显示帮助"
         exit 0

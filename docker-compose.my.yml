@@ -71,10 +71,13 @@ services:
       retries: 30
 
 # 网络配置
+# external: true —— 网络由外部管理（可能由生产 compose 创建，也可能运维手工建），
+# docker compose up/down 不再创建/删除它，避免与生产 compose (docker-compose.server.yml)
+# 抢同名 ruoyi-network 的冲突。
 networks:
   ruoyi-network:
     name: ruoyi-network
-    driver: bridge
+    external: true
 
 # 数据持久化（stop-dev.sh --keep-data 时保留；不加 --keep-data 时 docker compose down -v 会清理）
 # 命名加 ruoyi-local 前缀，避免和生产环境（smart-ops-*）冲突
