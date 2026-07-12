@@ -1483,7 +1483,7 @@ GET /biz/ota/order/list
 
 ---
 
-## 十三、战略驾驶舱模块
+## 十三、仪表盘模块（原仪表盘，v3.6 改名）
 
 > 经营总览：合同统计、渠道收入、经营数据趋势。
 > 数据来源于 `biz_contract`、`biz_channel`、`biz_finance`、`biz_operation_data` 的聚合查询。
@@ -1491,7 +1491,7 @@ GET /biz/ota/order/list
 ### 13.1 合同统计概览
 
 ```
-GET /biz/cockpit/contract/stats
+GET /biz/dashboard/contract/stats
 ```
 
 **响应：**
@@ -1519,7 +1519,7 @@ GET /biz/cockpit/contract/stats
 ### 13.2 渠道收入排行
 
 ```
-GET /biz/cockpit/channel/revenue
+GET /biz/dashboard/channel/revenue
 ```
 
 **参数：**
@@ -1548,7 +1548,7 @@ GET /biz/cockpit/channel/revenue
 ### 13.3 经营数据趋势
 
 ```
-GET /biz/cockpit/operation/trend
+GET /biz/dashboard/operation/trend
 ```
 
 **参数：**
@@ -1579,10 +1579,10 @@ GET /biz/cockpit/operation/trend
 }
 ```
 
-### 13.4 驾驶舱首页聚合
+### 13.4 仪表盘首页聚合（原仪表盘）
 
 ```
-GET /biz/cockpit/dashboard
+GET /biz/dashboard/dashboard
 ```
 
 **响应：**
@@ -1719,7 +1719,7 @@ GET /system/dict/data/type/{dictType}
 | 10.1~10.4 经营数据 | 手工录入，不与合同汇总 | ADR-架构决策记录.md D05 |
 | 11.5 银行对账导入 | CSV 导入，不做直连银行 API | ADR-架构决策记录.md D10 |
 | 12.1~12.3 OTA 导入 | 先 CSV 兜底，API 对接为第二阶段 | ADR-架构决策记录.md D09 |
-| 13.1~13.4 战略驾驶舱 | 聚合合同/渠道/财务/经营数据 | 数据库设计.md 第四章 |
+| 13.1~13.4 仪表盘（原仪表盘） | 聚合合同/渠道/财务/经营数据 | 数据库设计.md 第四章 |
 
 ---
 

@@ -1,7 +1,7 @@
 # 架构决策记录（ADR）
 
-> 文档版本：v1.4  
-> 编写日期：2026-07-11  
+> 文档版本：v1.5  
+> 编写日期：2026-07-12  
 > 文档定位：记录项目关键架构决策、业务决策及其 rationale；作为后续开发、评审、新人 onboarding 的依据。
 
 ---
@@ -29,9 +29,11 @@
 | D24 | API 字段命名一致性 | JSON 请求/响应字段一律 camelCase，全站强约束；Python 用 snake_case 由 Pydantic `alias_generator=to_camel` 自动序列化 | ✅ 已确认 |
 | D25 | 前端样式主题适配规范 | 所有 `.vue` 页面/组件的样式中，色值（背景/文字/边框）必须通过 Element Plus CSS 变量（`var(--el-*)`）引用；禁止硬编码 EP 调色板色值；`html.dark` 切换时自动跟随；业务语义色（警告/金额/驳回等）允许硬编码但需显式注明 | ✅ 已确认 |
 | D26 | 注解层 PEP 563 forward ref 兼容性 | 凡通过 `inspect.signature(func).parameters` 解析参数类型注解的工具函数（@Log、参数名提取等），必须用 `typing.get_type_hints(func)` 解析 forward ref 后再做类型匹配；controller 启用 `from __future__ import annotations` 时注解会是字符串，原生比较会失败 | ✅ 已确认 |
-| D27 | 前端顶级路由必须 redirect + 侧边栏绝对路径短路 | 顶层父路由（含 `/biz`、`/cockpit` 等独立顶级路由）必须配置 `redirect` 到第一个子路由；侧边栏 `SidebarItem.resolvePath` 必须短路以 `/` 开头的 routePath，避免与空 basePath 拼出 `//xxx` | ✅ 已确认 |
-| D28 | 路线 C 战略驾驶舱升级范围 | Pydantic 模型统一采用别名显式声明（`Field(alias='xx', serialization_alias='xx')`）优先于 `alias_generator=to_camel`，避免纯数字+字母连写的边界 case 把字段转成「首字母大写」；具体场景：`trend_7d` → 显式 alias `trend7d` | ✅ 已确认 |
-| D29 | 战略驾驶舱大屏形态（路线 C） | 驾驶舱呈现**三形态**：① **工作台入口** `/cockpit/index`（嵌 Layout，普通业务页，6 KPI 可跳转 + AI 卡片）；② **真·大屏** `/cockpit/dashboard`（嵌 Layout，三栏分栏 + 头部 + 物流飞线 + 审批跑马灯 + AI 雷达 + 省份联动）；③ **全屏投放** `/cockpit/screen`（hidden 路由，自动 requestFullscreen，Esc 退）；中部地图中枢 hub = 北京；省份联动后端字段为 `province`（`biz_contract.province` 由 `biz_customer.province` 派生） | ✅ 已确认 |
+| D27 | 前端顶级路由必须 redirect + 侧边栏绝对路径短路 | 顶层父路由（含 `/biz`、`/dashboard` 等独立顶级路由）必须配置 `redirect` 到第一个子路由；侧边栏 `SidebarItem.resolvePath` 必须短路以 `/` 开头的 routePath，避免与空 basePath 拼出 `//xxx` | ✅ 已确认 |
+| D28 | 路线 C 仪表盘升级范围 | Pydantic 模型统一采用别名显式声明（`Field(alias='xx', serialization_alias='xx')`）优先于 `alias_generator=to_camel`，避免纯数字+字母连写的边界 case 把字段转成「首字母大写」；具体场景：`trend_7d` → 显式 alias `trend7d` | ✅ 已确认 |
+| D29 | 仪表盘大屏形态（v3.6 扁平化） | v3.5 收敛为单形态 `/dashboard/dashboard` 后，v3.6 进一步扁平化为**顶级路由 `/dashboard`**（不再有 `/dashboard` 父级 Layout 容器）：`path: '/dashboard'` + `component: '@/views/dashboard/dashboard.vue'` 单行；删除 dashboard 父路由的 `redirect` + `component: Layout` + children 嵌套；删除 `useRouter` / `useRoute` / `fullscreen` ref / `toggleScreen` 函数 / `props.fullscreen` 等已无引用的代码与样式分支；浏览器原生 F11 全屏 + 三栏 full-screen 样式（无 Layout 包裹） | ✅ 已确认 |
+| D31 | 仪表盘改名为仪表盘（v3.6） | 「仪表盘」产品名沿用自 v1.0 demo；v3.6 收敛为顶级路由 `/dashboard` 后页面已无「仪表盘」实体氛围，且与 dashboard.vue 文件名一致性更强，故用户视角统一改名「仪表盘」：(1) `sys_menu.menu_id=13.menu_name='仪表盘'→'仪表盘'`；(2) router meta title + dashboard.vue 顶部中文标题「数据仪表盘」→「数据仪表盘」；(3) 后端 FastAPI tag 改「业务管理-仪表盘」+ Pydantic/DAO/Service docstring 头部加「原仪表盘」回溯注释；(4) API 设计文档第十三章标题「仪表盘模块」→「仪表盘模块」；(5) **未改**：URL 路径 `/biz/dashboard/overview` 仍保留（前端 api/biz/dashboard.js 沿用），`dashboard_*.py` Python 文件名（重命名影响类名 import 全网扫描），历史 ADR 标题 D28/D29/路线 B-C 开发计划保留原标题（历史快照不改） | ✅ 已确认 |
+| D30 | DAO filter 参数显式签名 | service 层用 `asyncio.gather(*DAO_calls)` 并发调用时，DAO 签名必须显式接收 filter 参数（如 `province: str = ''`），而非用 `**kwargs` 兜底；好处：① 静态层 inspect.signature 一眼看出哪些 DAO 支持哪些维度过滤；② 漏接参数时直接 TypeError 而非静默忽略；③ `if province:` 分支条件清晰可读；本规则在 `dashboard_dao.trend_7d` 漏接 province 事故中确立（v3.5） | ✅ 已确认 |
 
 ---
 
@@ -536,9 +538,9 @@ def get_function_parameters_name_by_type(func: Callable, param_type: Any) -> lis
 
 ### D27：前端顶级路由必须 redirect + 侧边栏绝对路径短路
 
-**问题**：vue-router 警告 `Location "//cockpit" resolved to "//cockpit". A resolved location cannot start with multiple slashes.` 在切换驾驶舱菜单时反复触发。两个独立 bug 叠加：
+**问题**：vue-router 警告 `Location "//dashboard" resolved to "//dashboard". A resolved location cannot start with multiple slashes.` 在切换仪表盘菜单时反复触发。两个独立 bug 叠加：
 
-1. **`/cockpit` 顶级路由没设 `redirect`**：访问根路径 `/cockpit` 会 404（其他顶级路由如 `/biz` 都设了 `redirect: '/biz/approval'`）。子路由 `path: 'index'` 拼出来是 `/cockpit/index`，但用户点菜单走的是 `/cockpit` 父路径。
+1. **`/dashboard` 顶级路由没设 `redirect`**：访问根路径 `/dashboard` 会 404（其他顶级路由如 `/biz` 都设了 `redirect: '/biz/approval'`）。子路由 `path: 'index'` 拼出来是 `/dashboard/index`，但用户点菜单走的是 `/dashboard` 父路径。
 2. **`SidebarItem.vue` 的 `resolvePath(routePath)` 拼接 bug**：
    ```js
    // 旧实现（line 79-91）
@@ -546,21 +548,21 @@ def get_function_parameters_name_by_type(func: Callable, param_type: Any) -> lis
      if (isExternal(routePath)) return routePath
      if (isExternal(props.basePath)) return props.basePath
      // basePath 是父路由传下来的；顶级父路由的 basePath 是空串 ''
-     return getNormalPath(props.basePath + '/' + routePath)  // '' + '/' + '/cockpit' = '//cockpit' 💥
+     return getNormalPath(props.basePath + '/' + routePath)  // '' + '/' + '/dashboard' = '//dashboard' 💥
    }
    ```
-   当 `routePath` 本身已是绝对路径（以 `/` 开头，如顶级父路由 `/cockpit` 自身），`basePath=''` 时拼接会得到 `//cockpit`。
+   当 `routePath` 本身已是绝对路径（以 `/` 开头，如顶级父路由 `/dashboard` 自身），`basePath=''` 时拼接会得到 `//dashboard`。
 
 **决策**：
 
-- **规则 1**：所有顶层父路由（含 `/biz`、`/cockpit` 等独立顶级路由）**必须**配置 `redirect: '/<first-child>'` 指向第一个子路由
+- **规则 1**：所有顶层父路由（含 `/biz`、`/dashboard` 等独立顶级路由）**必须**配置 `redirect: '/<first-child>'` 指向第一个子路由
 - **规则 2**：`SidebarItem.vue` 的 `resolvePath` 必须短路以 `/` 开头的 `routePath`，避免与空 `basePath` 拼出 `//xxx`
 
 **Rationale**：
 
 - vue-router 设计上要求 path 单一 `/` 开头；双 `/` 路径在不同浏览器/代理下行为不一致（部分会被吞掉，部分会重定向到根），必须在源头避免
-- 顶级父路由无 redirect 时用户直接访问 `/cockpit` 会撞到空 Layout 组件；统一 redirect 是约定俗成的 vue-element-admin 模板风格
-- 侧边栏短路修复是**通用性修复**——任何顶级父路由（不只是 cockpit）都会遇到同类问题；不改就埋雷
+- 顶级父路由无 redirect 时用户直接访问 `/dashboard` 会撞到空 Layout 组件；统一 redirect 是约定俗成的 vue-element-admin 模板风格
+- 侧边栏短路修复是**通用性修复**——任何顶级父路由（不只是 dashboard）都会遇到同类问题；不改就埋雷
 
 **修复（侧边栏）**：
 
@@ -570,7 +572,7 @@ def get_function_parameters_name_by_type(func: Callable, param_type: Any) -> lis
 function resolvePath(routePath, routeQuery) {
   if (isExternal(routePath)) return routePath
   if (isExternal(props.basePath)) return props.basePath
-  // 绝对路径直接返回，避免 basePath='' + '/'+ '/cockpit' 拼出 '//cockpit'
+  // 绝对路径直接返回，避免 basePath='' + '/'+ '/dashboard' 拼出 '//dashboard'
   if (routePath.startsWith('/')) {
     return getNormalPath(routePath)
   }
@@ -583,36 +585,36 @@ function resolvePath(routePath, routeQuery) {
 </script>
 ```
 
-**修复（cockpit 路由）**：
+**修复（dashboard 路由）**：
 
 ```js
 // ruoyi-fastapi-frontend/src/router/index.js
 {
-  path: '/cockpit',
+  path: '/dashboard',
   component: Layout,
-  redirect: '/cockpit/index',  // 补：与 /biz 的 redirect 风格一致
-  permissions: ['biz:cockpit:view'],
+  redirect: '/dashboard/index',  // 补：与 /biz 的 redirect 风格一致
+  permissions: ['biz:dashboard:view'],
   children: [
-    { path: 'index', component: () => import('@/views/biz/cockpit/index.vue'), name: 'BizCockpit', meta: { title: '战略驾驶舱', icon: 'pie-chart', noCache: false } }
+    { path: 'index', component: () => import('@/views/biz/dashboard/index.vue'), name: 'BizDashboard', meta: { title: '仪表盘', icon: 'pie-chart', noCache: false } }
   ]
 }
 ```
 
-**修复（cockpit 路由）**：
+**修复（dashboard 路由）**：
 
 ```js
 // ruoyi-fastapi-frontend/src/router/index.js
 {
-  path: '/cockpit',
+  path: '/dashboard',
   component: Layout,
-  redirect: '/cockpit/index',
-  permissions: ['biz:cockpit:view'],
+  redirect: '/dashboard/index',
+  permissions: ['biz:dashboard:view'],
   children: [
     {
       path: 'index',
-      component: () => import('@/views/biz/cockpit/index.vue'),
-      name: 'BizCockpit',
-      meta: { title: '战略驾驶舱', icon: 'pie-chart', noCache: false }
+      component: () => import('@/views/biz/dashboard/index.vue'),
+      name: 'BizDashboard',
+      meta: { title: '仪表盘', icon: 'pie-chart', noCache: false }
     }
   ]
 }
@@ -620,14 +622,14 @@ function resolvePath(routePath, routeQuery) {
 
 **影响范围**：
 
-- 修改：`src/router/index.js`（cockpit 父路由补 redirect）、`src/layout/components/Sidebar/SidebarItem.vue`（resolvePath 短路）
-- 受益：所有顶级父路由（不只 cockpit），未来新增 `/xxx` 顶级路由也不会再触发 `//xxx` 警告
+- 修改：`src/router/index.js`（dashboard 父路由补 redirect）、`src/layout/components/Sidebar/SidebarItem.vue`（resolvePath 短路）
+- 受益：所有顶级父路由（不只 dashboard），未来新增 `/xxx` 顶级路由也不会再触发 `//xxx` 警告
 
 ---
 
-### D28：路线 C 战略驾驶舱升级 - Pydantic 别名显式声明（避坑 `trend7d`）
+### D28：路线 C 仪表盘升级 - Pydantic 别名显式声明（避坑 `trend7d`）
 
-**问题**：路线 C 重构 cockpit 时，Pydantic `CockpitOverviewModel.trend_7d: list[Trend7dItemModel]` 由 `alias_generator=to_camel` 自动转 camelCase，实测**得到的字段名是 `trend7D`** 而不是预期的 `trend7d`：
+**问题**：路线 C 重构 dashboard 时，Pydantic `DashboardOverviewModel.trend_7d: list[Trend7dItemModel]` 由 `alias_generator=to_camel` 自动转 camelCase，实测**得到的字段名是 `trend7D`** 而不是预期的 `trend7d`：
 
 ```python
 >>> from pydantic.alias_generators import to_camel
@@ -641,7 +643,7 @@ function resolvePath(routePath, routeQuery) {
 
 - 所有 Pydantic 模型若字段名包含「数字+字母连写」边界（`trend_7d`、`level_3_id` 等），**必须**用 `Field(alias='xx', serialization_alias='xx')` 显式声明，**优先于** `alias_generator=to_camel`
 - 普通字段（纯字母）继续走 `to_camel`，无需手写 alias
-- 影响本项目唯一已知案例：`CockpitOverviewModel.trend_7d` → 显式 `alias='trend7d', serialization_alias='trend7d'`
+- 影响本项目唯一已知案例：`DashboardOverviewModel.trend_7d` → 显式 `alias='trend7d', serialization_alias='trend7d'`
 
 **Rationale**：
 
@@ -653,9 +655,9 @@ function resolvePath(routePath, routeQuery) {
 **修复**：
 
 ```python
-# ruoyi-fastapi-backend/module_biz/entity/vo/cockpit_vo.py
-class CockpitOverviewModel(CockpitBaseModel):
-    kpi: CockpitKpiModel = Field(default_factory=CockpitKpiModel)
+# ruoyi-fastapi-backend/module_biz/entity/vo/dashboard_vo.py
+class DashboardOverviewModel(DashboardBaseModel):
+    kpi: DashboardKpiModel = Field(default_factory=DashboardKpiModel)
     trend_7d: list[Trend7dItemModel] = Field(
         default_factory=list,
         alias='trend7d',                      # ← 关键
@@ -667,89 +669,152 @@ class CockpitOverviewModel(CockpitBaseModel):
 验证：
 
 ```python
->>> CockpitOverviewModel(trend_7d=[]).model_dump(by_alias=True, mode='json').keys()
+>>> DashboardOverviewModel(trend_7d=[]).model_dump(by_alias=True, mode='json').keys()
 dict_keys(['channelLocations', 'generatedAt', 'kpi', 'province', 'recentApprovals',
            'statusDistribution', 'topCustomers', 'trend7d'])  # ✓ trend7d
 ```
 
 **影响范围**：
 
-- 当前唯一影响：`CockpitOverviewModel.trend_7d` 一处
+- 当前唯一影响：`DashboardOverviewModel.trend_7d` 一处
 - 项目其他 Pydantic 模型扫一遍，凡含「`_数字字母`」边界（如 `step_3`、`level_2_score`）走同样规则
 
 **关联 DEBUG**：`DEBUG/trend7d-to-camel-2026-07-12.md`。
 
 ---
 
-### D29：战略驾驶舱大屏形态（路线 C）
+### D29：仪表盘大屏形态（v3.5 收敛——单形态路线）
 
-**问题**：v3.0/v3.3 路线 A/B 落地后，驾驶舱仍是一个普通业务页（嵌 Layout、单卡片堆叠），对比 demo1 `DataScreen.vue` 的真·大屏（头部 + 三栏 + 物流飞线 + 审批跑马灯 + AI 雷达 + 省份联动 + 全屏投放）有肉眼可见的形态差距。
+**v3.4 原始问题**：v3.0/v3.3 路线 A/B 落地后，仪表盘是一个普通业务页，对比 demo1 `DataScreen.vue` 有形态差距。v3.4 路线 C 决定做**三形态**（工作台 / 大屏 / 全屏投放）来对齐 demo1。
 
-**决策**：驾驶舱呈现「**三形态**」：
+**v3.5 收敛原因**（实测发现）：
 
-1. **工作台入口** `/cockpit/index`
-   - 嵌 Layout 的普通业务页，6 个 KPI 数字翻牌
-   - KPI 卡可点击 → 跳转对应业务页（`/biz/contract`、`/biz/approval` 等）
-   - AI 大脑精简摘要卡片（高/中/低风险标签 + 建议条目）
-   - Top10 / 状态分布 / 审批时间轴 / 弱化地图
-   - 右上角「进入大屏」按钮 → `window.open('/cockpit/dashboard', '_blank')`
+1. **全屏按钮状态同步 bug**：dashboard.vue `toggleScreen()` 退出分支没同步 `fullscreen.value = false`，按退出后按钮文字仍卡在「退出」；浏览器 Esc 退出 + 组件 ref 状态不同步同样有问题
+2. **`readexactly()` socket race**：浏览器通过 HTTP/1.1 keep-alive 连接多次重载后的 9099 端口时，两个 Python 进程争 socket，前一个未读完 stream 后一个又来，触发 `axios` 内部 `readexactly() called while another coroutine is already waiting for incoming data`
+3. **三形态认知负担**：工作台 / 大屏 / 全屏三处入口，菜单 / 按钮 / 状态同步代码重复
 
-2. **真·大屏** `/cockpit/dashboard`
-   - 嵌 Layout（activeMenu 指向 `/cockpit/index` 不让侧边栏重复高亮）
-   - 顶部标题栏：「智能运营平台 · 数据驾驶舱」+ 英文副标题 + 在线状态点 + 实时时钟 + 今日日期 + 全屏投放按钮
-   - 三栏分栏（左 26% / 中央 flex:1 / 右 26%）：
-     - 左：6 KPI（数字翻牌 + 旋入动画）+ 7 日合同趋势
-     - 中：渠道天眼地图（demo1 同款 `effectScatter` + `lines` 物流飞线 + 中枢高亮 + `visualMap` 省份着色 + `province-click` 联动）
-     - 右：7 级审批流跑马灯（hover 暂停 + 循环滚动）+ AI 大脑（6 维雷达 + 打字机轮播 summary/risks/suggestions）
-   - 省份联动：点地图省份 → KPI/趋势/状态分布/Top10 全部按 `province` 过滤；「← 返回全国」按钮回全国视图
+**决策**：v3.5 收敛为**单一形态**：
+
+1. **`/dashboard` 真·大屏（唯一保留，v3.6 扁平化顶级路由）**
+   - 顶级路由（不再嵌 Layout，直接全屏渲染）
+   - 侧边栏「仪表盘」菜单 → `/dashboard`
+   - 顶部标题栏：智能运营平台 · 数据仪表盘 + 英文副标题 + 时钟 + 今日日期
+   - 三栏分栏（左 / 中 / 右）：
+     - 左：6 KPI 数字翻牌 + 7 日合同趋势
+     - 中：渠道天眼地图（`effectScatter` + `lines` 物流飞线 + 中枢高亮 + `visualMap` + `province-click`）
+     - 右：7 级审批流跑马灯（hover 暂停 + 无缝循环）+ AI 大脑（6 维雷达 + 打字机轮播）
+   - 省份联动：点地图省份 → 全部按 `province` 过滤；「← 返回全国」按钮回全国视图
    - 60s 自动刷新 overview，90s 自动刷新 AI
+   - **全屏用浏览器原生 F11 / 系统快捷键**，应用层不做全屏
 
-3. **全屏投放** `/cockpit/screen`
-   - hidden 路由（侧边栏不出现）
-   - 与 `/cockpit/dashboard` 共用 dashboard 组件
-   - 检测到 `route.meta.fullscreen === true` 自动 `document.documentElement.requestFullscreen()`
-   - 按 Esc 或浏览器退全屏 → 自动 `router.push('/cockpit/index')`
-   - 演示场景专用，与登录用户共用 token
+2. **删除 `/dashboard/index` 工作台入口**：`views/biz/dashboard/index.vue` 文件 + `biz/dashboard` 空目录都已删除
+
+3. **删除 `/dashboard/screen` 全屏投放路由**：hidden 路由 + 自动 requestFullscreen + Esc 退 全部移除，dashboard.vue 里 `toggleScreen` / `onKey` / `onFullscreenChange` / `fullscreenchange` 监听全清掉，fullscreen ref 退化为仅 `:class` 绑定的无副作用常量
 
 **Rationale**：
 
-- 三形态对应三类用户：**业务经办**（日常看工作台）、**决策层**（鼠标点大屏看省份联动）、**演示/汇报**（全屏投放）
-- 工作台与大屏共用 backend，单端点 `/biz/cockpit/overview?province=xx` 数据契约；新增 `province` 参数比 fork 两个 service 干净
-- dashboard.vue 是 Layout 嵌入版还是 fullscreen 投放版由 route meta 决定，**单一组件、单一逻辑**，避免双份代码漂移
-- 中枢 hub 默认北京（覆盖集团总部），未来要换成具体集团总部只改 `ScreenMap` 的 `hub` prop
-- 审批跑马灯用 `recentApprovals.concat(recentApprovals)` 复制一份接尾实现无缝循环（demo1 同款 CSS 动画），无 JS 计时器依赖
-- DAO 改 `asyncio.gather` 并发（10 个 SQL → 单次延迟 < 200ms）让工作台/大屏切换体感无白屏
+- 单一形态 = 单一代码路径 = 零按钮状态同步坑
+- 应用层全屏入口本质是 UX 假象（用户按 F11 一样全屏），价值低、维护成本高
+- HTTP/1.1 keep-alive + 多次 reload 的 socket race 由 **start-dev.sh 加 9099 端口暴力清场（最多 3 次 `kill -9`）** 根治
+- 浏览器原生全屏不触发任何组件 ref 同步问题
 
-**架构图**（数据流）：
+**架构图**（v3.5）：
 
 ```
-                    /biz/cockpit/overview?province=xx
+                    /biz/dashboard/overview?province=xx
                               │
-        ┌─────────────────────┼─────────────────────┐
-        ▼                     ▼                     ▼
-   工作台 /cockpit/index   大屏 /cockpit/dashboard   全屏 /cockpit/screen
-   工作台：6 KPI + AI 摘要   大屏：头部 + 三栏       全屏：复用 dashboard + 自动 fullscreen
-                            （KPI + 趋势 + 天眼           + Esc 退
-                            跑马灯 + AI 雷达）
-                            + 省份联动
+                              ▼
+                  /dashboard 真·大屏（v3.6 扁平化顶级路由，唯一形态）
+                       头部 + 三栏 + 省份联动
+                       F11 / 系统快捷键全屏
 ```
 
-**后端 province 数据链**：
+**后端 province 数据链**（不变）：
 
 ```
 biz_customer.province (RED 增列)
    ↓ 派生
-biz_contract.province (RED 增列，由 cockpit_v3_3_init.sql 的 UPDATE 一次性回填)
+biz_contract.province (RED 增列，由 dashboard_v3_3_init.sql 的 UPDATE 一次性回填)
    ↓ 过滤
-CockpitOverviewModel.province 字段返回当前视图（端点 echo 给前端）
+```
+
+### D30：DAO filter 参数显式签名（避坑 `**kwargs`）
+
+**问题**：v3.4 路线 C 落地时，service 层 `dashboard_service.py` 用 `asyncio.gather(*DAO_calls)` 把 10 个 DAO 统一并发调用：
+
+```python
+(
+    kpi_contract, ..., trend_7d, ...
+) = await asyncio.gather(
+    DashboardDAO.kpi_contract(db, province),
+    ...,
+    DashboardDAO.trend_7d(db, province),  # ← trend_7d 漏接 province
+    ...
+)
+```
+
+`DashboardDAO.trend_7d(db)` 原签名只收 `db`，service 强行传第二个位置参数 → TypeError `takes 1 positional argument but 2 were given` → 500 抛出。
+
+**根因**：v3.4 给 4 个 DAO（kpi_contract / status_distribution / top_customers / channel_locations）加了 `province` 过滤，唯独 `trend_7d` 漏；原因是 v3.4 静态层冒烟用 `pytest -k dashboard` mock 调 DAO，没走真实 service.overview_services(...)，漏掉了并发调用契约。
+
+**决策**：凡是 service 用 `asyncio.gather(*DAO_calls)` 并发调用，DAO 签名必须**显式接收 filter 参数**（如 `province: str = ''`），**禁止用 `**kwargs` 兜底**。
+
+**Rationale**：
+
+- **静态可校验**：`inspect.signature(DashboardDAO.trend_7d).parameters` 一眼看出支持哪些维度过滤；CI 可加 `pytest` 断言「所有 DAO 在 gather 调用里传的参数都在签名里」
+- **漏接即崩**：DAO 漏接参数 → TypeError 立即在 gather 抛出，定位 0 成本；用 `**kwargs` 兜底 → 静默忽略，过滤失效、用户看不到数据但页面不崩（最差形态）
+- **条件过滤清晰**：`if province: q.append(...)` 比 `if 'province' in kwargs and kwargs['province']:` 短 70%，IDE 跳定义也准
+- **配合 D24（API camelCase）**：filter 维度命名（如 `province`）前端 service 一处定义、后端 DAO 多处透传，命名一致性 + 显式签名 = 双保险
+
+**修复**：
+
+```python
+# module_biz/dao/dashboard_dao.py（v3.5）
+@staticmethod
+async def trend_7d(db: AsyncSession, province: str = '') -> list[Trend7dItemModel]:
+    today = date.today()
+    start = today - timedelta(days=6)
+    start_dt = datetime.combine(start, datetime.min.time())
+
+    new_q = [BizContract.create_time >= start_dt]
+    if province:
+        new_q.append(BizContract.province == province)
+    new_stmt = (
+        select(func.date(BizContract.create_time).label('d'), func.count(BizContract.id))
+        .where(*new_q)
+        .group_by(func.date(BizContract.create_time))
+    )
+
+    approved_q = [BizContract.status == 'approved', BizContract.update_time >= start_dt]
+    if province:
+        approved_q.append(BizContract.province == province)
+    approved_stmt = (
+        select(func.date(BizContract.update_time).label('d'), func.count(BizContract.id))
+        .where(*approved_q)
+        .group_by(func.date(BizContract.update_time))
+    )
+    ...
+```
+
+防御：参数 `province=''` 默认空串，老调用方零成本兼容，新调用方显式声明可读。
+
+**静态校验示例**：
+
+```python
+import inspect
+from module_biz.dao.dashboard_dao import DashboardDAO
+for m in ['kpi_contract', 'trend_7d', 'status_distribution', 'top_customers']:
+    sig = inspect.signature(getattr(DashboardDAO, m))
+    assert 'province' in sig.parameters, f'{m} 漏接 province，违反 D30'
 ```
 
 **影响范围**：
 
-- 后端：4 文件（vo / dao / service / controller）+ 1 增量 SQL
-- 前端：4 文件（api / ScreenMap / dashboard.vue / cockpit/index.vue）+ 1 路由配置
-- 数据库：3 表加字段（biz_channel +4 / biz_contract +1 / biz_customer +1）+ 演示数据回填
-- start-dev.sh：v3.3 增量脚本探测逻辑（已建库自动跑 ALTER）
+- 本项目唯一受影响：`DashboardDAO.trend_7d` 一处
+- 项目所有 DAO 已扫一遍（kpi_* / *_distribution / *_locations / *_pending），除 `trend_7d` 外全部已正确支持 `province`，无其它漏接
+- 未来新增 DAO filter 维度（如 `period`、`category`）按 D30 显式签名
+
+**关联 DEBUG**：`DEBUG/dashboard-runtime-race-2026-07-12.md`。
 
 ---
 

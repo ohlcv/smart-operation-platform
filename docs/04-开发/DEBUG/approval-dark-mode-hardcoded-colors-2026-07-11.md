@@ -153,10 +153,10 @@ rg -n '#[0-9a-fA-F]{3,6}' ruoyi-fastapi-frontend/src/views/biz/approval/index.vu
 
 ### 5.3 已知未修（占位页）
 
-扫描发现 6 个占位页（`cockpit / ota / operation / finance / invoice / channel`）各有两处硬编码 `#909399` + `#303133`，但这些页面**只有 `<div class="biz-placeholder">TODO</div>`**，尚未实现业务，等待 Phase 4 真实开发时再清理：
+扫描发现 6 个占位页（`dashboardrd / ota / operation / finance / invoice / channel`）各有两处硬编码 `#909399` + `#303133`，但这些页面**只有 `<div class="biz-placeholder">TODO</div>`**，尚未实现业务，等待 Phase 4 真实开发时再清理：
 
 ```bash
-rg -n '#909399|#303133' ruoyi-fastapi-frontend/src/views/biz/{cockpit,ota,operation,finance,invoice,channel}/index.vue
+rg -n '#909399|#303133' ruoyi-fastapi-frontend/src/views/biz/{dashboardrd,ota,operation,finance,invoice,channel}/index.vue
 # 当前：12 行命中（6 页 × 2 处）
 ```
 

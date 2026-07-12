@@ -3,7 +3,7 @@
 > 文档版本：v2.0（完成报告）
 > 原始创建：2026-07-11 23:00（按"待开发"假设撰写）
 > 现实更新：2026-07-12 00:15（按 commit `d8dd5bc` 实际成果重写）
-> 文档定位：路线 B 「战略驾驶舱大屏」+ 「可视化通用组件」**真实交付清单**。
+> 文档定位：路线 B 「仪表盘大屏」+ 「可视化通用组件」**真实交付清单**。
 
 ---
 
@@ -12,9 +12,9 @@
 | 维度 | 数据 |
 |------|------|
 | Commit hash | `d8dd5bc` |
-| Commit 标题 | `feat(module_biz): 战略驾驶舱大屏（路线 B）` |
+| Commit 标题 | `feat(module_biz): 仪表盘大屏（路线 B）` |
 | 新增文件 | **后端 4 + 前端 5 = 9 个**（含 route_sql/无 SQL/无主题样式覆写） |
-| 菜单 | menu_id=13（战略驾驶舱），路径 `/cockpit/index`，**顶级路由不是 /biz/cockpit** |
+| 菜单 | menu_id=13（仪表盘），路径 `/dashboard/index`，**顶级路由不是 /biz/dashboard** |
 | 工作量 | 1 个会话内完成 |
 
 ---
@@ -23,12 +23,12 @@
 
 | 维度 | 初始假设 | 现实 |
 |------|---------|------|
-| **cockpit 路由位置** | `/biz/cockpit` | **`/cockpit/index`**（顶级路由，与其他 7 个 /biz/* 不同） |
+| **dashboard 路由位置** | `/biz/dashboard` | **`/dashboard/index`**（顶级路由，与其他 7 个 /biz/* 不同） |
 | **dashboard 路由** | 需新建覆盖 RuoYi 原生 | **未改**，沿用 RuoYi 原生 `dashboard/index.vue` 17KB |
 | **profile 路由** | 需新建 | **未改**，RuoYi 原生 `system/user/profile/*` 已存在并增强 signature 画板 |
 | **system/user 路由** | 需新建 | **未改**，RuoYi 原生 `system/user/index.vue` 在用 |
 | **可视化组件路径** | `components/Biz/{BaseChart,CountTo,ScreenMap}.vue` | **完全一致** ✅ |
-| **cockpit 后端 do/vo** | 路线 B 不需要 | **vo 存在**（cockpit_vo.py），do **不存在**（聚合查询不写库）|
+| **dashboard 后端 do/vo** | 路线 B 不需要 | **vo 存在**（dashboard_vo.py），do **不存在**（聚合查询不写库）|
 | **数据源** | 读已完成的合同/审批/客户表 | 一致，并且额外读路线 A 的 channel/invoice/finance/operation 表做 KPI |
 | **科技蓝主题样式** | 路线 B 要做 | **未做**（用户明确「先不要管科技风主题样式覆写」） |
 
@@ -40,11 +40,11 @@
 
 | 文件 | 行数 | 内容 |
 |------|------|------|
-| `module_biz/controller/cockpit_controller.py` | **1690 字节** | 1 个聚合 endpoint：`GET /biz/cockpit/overview` |
-| `module_biz/service/cockpit_service.py` | **4038 字节** | 业务聚合 + 简单缓存（60s TTL） |
-| `module_biz/dao/cockpit_dao.py` | **13471 字节** | **最大文件**：6 个聚合查询（合同总数/状态分布/7 日趋势/Top10 客户/审批流/营收） |
-| `module_biz/entity/vo/cockpit_vo.py` | **5617 字节** | Pydantic VO：KPI / Trend7D / StatusDist / TopCustomer / RecentApproval |
-| `module_biz/entity/do/cockpit_do.py` | ❌ **不存在** | 聚合查询不写库，不需要 ORM 模型 |
+| `module_biz/controller/dashboard_controller.py` | **1690 字节** | 1 个聚合 endpoint：`GET /biz/dashboard/overview` |
+| `module_biz/service/dashboard_service.py` | **4038 字节** | 业务聚合 + 简单缓存（60s TTL） |
+| `module_biz/dao/dashboard_dao.py` | **13471 字节** | **最大文件**：6 个聚合查询（合同总数/状态分布/7 日趋势/Top10 客户/审批流/营收） |
+| `module_biz/entity/vo/dashboard_vo.py` | **5617 字节** | Pydantic VO：KPI / Trend7D / StatusDist / TopCustomer / RecentApproval |
+| `module_biz/entity/do/dashboard_do.py` | ❌ **不存在** | 聚合查询不写库，不需要 ORM 模型 |
 
 **自动注册**：与路线 A 一致，由 `common/router.py auto_register_routers` 自动扫描 controller/ 注册。
 
@@ -57,17 +57,17 @@
 | `src/components/Biz/ScreenMap.vue` | **210** | 参考 v1 demo 1/frontend/src/components/screen/ScreenMap.vue | 中国地图 + 涟漪散点（effectScatter + ECharts.registerMap） |
 
 **被引用**：
-- `src/views/biz/cockpit/index.vue` 一次性 import 了 3 个组件（`grep import '@/components/Biz' src/` 唯一引用方）
+- `src/views/biz/dashboard/index.vue` 一次性 import 了 3 个组件（`grep import '@/components/Biz' src/` 唯一引用方）
 
 **中国地图 JSON**：
 - 路线 B 没引入 `src/assets/map/china.json` 物理文件，但代码里有 ECharts 内置 `china` 注册。**这点待 E2E 启动时验证**（如果没有 china.json，可能 runtime 报错）。
 
-### 3.3 战略驾驶舱主页（1 文件）
+### 3.3 仪表盘主页（1 文件）
 
 | 文件 | 行数 | 内容 |
 |------|------|------|
-| `src/views/biz/cockpit/index.vue` | **331** | 暗色科技风大屏页面 |
-| `src/api/biz/cockpit.js` | **320 字节** | 1 个 API 函数 `getCockpitOverview` |
+| `src/views/biz/dashboard/index.vue` | **331** | 暗色科技风大屏页面 |
+| `src/api/biz/dashboard.js` | **320 字节** | 1 个 API 函数 `getDashboardOverview` |
 
 **页面布局**（与 v1 demo 的 `DataScreen.vue` 326 行属同一风格）：
 - 顶部：6 个 KPI 数字翻牌（合同总数 / 审批中 / 已通过 / 客户数 / 渠道数 / 本月营收）
@@ -82,14 +82,14 @@
 ```javascript
 // src/router/index.js
 {
-  path: '/cockpit',                  // 顶级路由，不在 /biz 下
+  path: '/dashboard',                  // 顶级路由，不在 /biz 下
   component: Layout,
-  permissions: ['biz:cockpit:view'],
+  permissions: ['biz:dashboard:view'],
   children: [{
     path: 'index',
-    component: () => import('@/views/biz/cockpit/index.vue'),
-    name: 'BizCockpit',
-    meta: { title: '战略驾驶舱', icon: 'pie-chart', noCache: false }
+    component: () => import('@/views/biz/dashboard/index.vue'),
+    name: 'BizDashboard',
+    meta: { title: '仪表盘', icon: 'pie-chart', noCache: false }
   }]
 }
 ```
@@ -109,16 +109,19 @@
 `sql/biz_menus_roles_init.sql` § 路线 B 段（commit `8eab8f0` 之后但路线 B commit `d8dd5bc` 之前已经写好菜单）：
 
 ```sql
--- 路线 B：战略驾驶舱菜单（menu_id=13）
+-- 路线 B：仪表盘菜单（menu_id=13，v3.6 改名，原「仪表盘」+ 路径 dashboard 化）
+-- 注：以下 SQL 仅保留作为历史样例（叙述路线 B v3.0 当时实现），实际部署请用：
+--   ruoyi-fastapi-backend/sql/biz_menus_roles_init.sql
 INSERT IGNORE INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, remark)
-VALUES (13, '战略驾驶舱', 0, 13, 'cockpit', 'biz/cockpit/index', 1, 0, 'C', '0', '0', 'biz:cockpit:view', 'pie-chart', 'admin', NOW(), '路线B');
+VALUES (13, '仪表盘', 0, 13, '/dashboard', 'dashboard/dashboard', 1, 0, 'C', '0', '0', 'biz:dashboard:view', 'pie-chart', 'admin', NOW(), 'v3.6 改名 + 路径 dashboard 化');
 INSERT IGNORE INTO sys_role_menu (role_id, menu_id) VALUES (1, 13);
 ```
 
-**注意**：
-- menu_id=13 让出来给路线 B 是 v3.0 hotfix 的关键决策（路线 A 用了 12/14/15/16）
-- `parent_id=0`（顶级），与审批 menu_id=8（也是 parent_id=0）风格不一致——这点保留作为已知差异
-- `path='cockpit'`（无 `biz/` 前缀），与 contract/customer 的 `path='contract'` 风格一致——**前后端 path 约定有冲突，前端路由是 `/cockpit/index`，菜单 path 是 `cockpit`**
+**注意**（v3.6 改名后）：
+- `menu_name='仪表盘'`（v3.6 前是「仪表盘」）
+- `path='/dashboard'`（v3.6 前是 `dashboard`，顶级而非 `/biz/*`）
+- `component='dashboard/dashboard'`（v3.6 前是 `biz/dashboard/index`）
+- `perms='biz:dashboard:view'` 保留（避免破坏角色权限矩阵；perm 标识符在历史里就叫这个）
 
 ---
 
@@ -135,14 +138,14 @@ INSERT IGNORE INTO sys_role_menu (role_id, menu_id) VALUES (1, 13);
 ### 5.2 dashboard/profile/system 三个原生页面与业务页视觉风格不一致
 
 - RuoYi 原生 dashboard 17KB 是经典 Element Plus 后台风格
-- 业务页（approval/contract/customer/4-CRUD/cockpit）都已经在 v2.9 / v3.0 做了暗色模式适配（D25）
+- 业务页（approval/contract/customer/4-CRUD/dashboard）都已经在 v2.9 / v3.0 做了暗色模式适配（D25）
 - **视觉一致性缺口**：用户登录后从 `/index` 跳 `/dashboard`（RuoYi 风），点「业务管理」跳 `/biz/approval`（暗色风），**反差明显**
 
 ### 5.3 主题样式覆写未做
 
 - 用户明确「先不要管科技风主题样式覆写」
-- 这意味着 cockpit 这套暗色科技风**只活在自己页面内**，没有全局 `--el-*` 变量覆写
-- 一旦未来要求全站切换，cockpit 会和全站主流视觉脱节
+- 这意味着 dashboard 这套暗色科技风**只活在自己页面内**，没有全局 `--el-*` 变量覆写
+- 一旦未来要求全站切换，dashboard 会和全站主流视觉脱节
 
 ---
 

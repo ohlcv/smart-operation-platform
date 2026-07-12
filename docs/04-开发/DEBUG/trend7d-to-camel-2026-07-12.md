@@ -2,14 +2,14 @@
 
 **日期**：2026-07-12
 **类型**：Pydantic 序列化 / 字段命名一致性（ADR D24/D28）
-**影响**：驾驶舱趋势图前端静默空数据；不影响其他业务模块（本项目唯一已知 `数字+字母连写` 边界字段）
+**影响**：仪表盘趋势图前端静默空数据；不影响其他业务模块（本项目唯一已知 `数字+字母连写` 边界字段）
 **根因**：`to_camel` 把 `trend_7d` 解析成 `[trend][7][d]` 三个词，组合时 `d` 单独被首字母大写成 `D`
 
 ---
 
 ## 1. 现象
 
-路线 C 重构 cockpit 后，本地端到端测试通过 `pytest -k cockpit` 全绿；路由层打开 `/biz/cockpit/overview` 看响应：
+路线 C 重构 dashboardrd 后，本地端到端测试通过 `pytest -dashboardoard` 全绿；路由层打开 `/biz/dashboard/overview` 看响应：
 
 ```json
 {
@@ -75,12 +75,12 @@ def to_camel(s: str) -> str:
 ### 2.2 静默不报错的链路
 
 ```python
-# cockpit_vo.py（修复前）
-class CockpitOverviewModel(CockpitBaseModel):
-    kpi: CockpitKpiModel = Field(default_factory=CockpitKpiModel)
+# dashboard_vo.py（修复前）
+class DashboardOverviewModel(DashboardBaseModel):
+    kpi: DashboardKpiModel = Field(default_factory=DashboardKpiModel)
     trend_7d: list[Trend7dItemModel] = Field(default_factory=list)
 
-CockpitBaseBase.model_config = ConfigDict(
+dashboardrdBaseModel.model_config = ConfigDict(
     alias_generator=to_camel,
     from_attributes=True,
     populate_by_name=True,
@@ -88,7 +88,7 @@ CockpitBaseBase.model_config = ConfigDict(
 ```
 
 ```python
->>> m = CockpitOverviewModel(trend_7d=[...])
+>>> m = DashboardOverviewModel(trend_7d=[...])
 >>> m.model_dump(by_alias=True, mode='json').keys()
 dict_keys([..., 'trend7D'])  # ← 出错点
 >>> m.model_dump(by_alias=True, mode='json')['trend7D']
@@ -107,8 +107,8 @@ grep -rEn '[a-zA-Z]+_[0-9]+[a-zA-Z_]+' ruoyi-fastapi-backend/module_biz/entity/v
 
 | 文件 | 字段 | 转 camelCase 结果 | 影响 |
 |---|---|---|---|
-| `cockpit_vo.py` | `trend_7d` | `trend7D` | 🔴 **本 DEBUG 现场** |
-| `cockpit_vo.py` | 其他（`kpi/trend_7d` 之外） | 正常 | ✅ |
+| `dashboard_vo.py` | `trend_7d` | `trend7D` | 🔴 **本 DEBUG 现场** |
+| `dashboard_vo.py` | 其他（`kpi/trend_7d` 之外） | 正常 | ✅ |
 | `customer_vo.py` / `contract_vo.py` / `invoice_vo.py` 等 | 全部纯字母字段 | 正常 | ✅ |
 
 本项目唯一案例。
@@ -120,15 +120,15 @@ grep -rEn '[a-zA-Z]+_[0-9]+[a-zA-Z_]+' ruoyi-fastapi-backend/module_biz/entity/v
 ### 3.1 修复前（静默空数据）
 
 ```python
-# ruoyi-fastapi-backend/module_biz/entity/vo/cockpit_vo.py
-class CockpitOverviewModel(CockpitBaseModel):
-    kpi: CockpitKpiModel = Field(default_factory=CockpitKpiModel)
+# ruoyi-fastapi-backend/module_biz/entity/vo/dashboard_vo.py
+class DashboardOverviewModel(DashboardBaseModel):
+    kpi: DashboardKpiModel = Field(default_factory=DashboardKpiModel)
     trend_7d: list[Trend7dItemModel] = Field(default_factory=list)
     # ↑ Field 没指定 alias，走 to_camel → 'trend7D'
 ```
 
 ```bash
-$ curl -X GET .../biz/cockpit/overview -H "Authorization: Bearer ..." | jq '.data | keys'
+$ curl -X GET .../biz/dashboard/overview -H "Authorization: Bearer ..." | jq '.data | keys'
 [
   "channelLocations",
   "generatedAt",
@@ -146,9 +146,9 @@ $ curl -X GET .../biz/cockpit/overview -H "Authorization: Bearer ..." | jq '.dat
 ### 3.2 修复后（显式 alias 锁定）
 
 ```python
-# ruoyi-fastapi-backend/module_biz/entity/vo/cockpit_vo.py
-class CockpitOverviewModel(CockpitBaseModel):
-    kpi: CockpitKpiModel = Field(default_factory=CockpitKpiModel)
+# ruoyi-fastapi-backend/module_biz/entity/vo/dashboard_vo.py
+class DashboardOverviewModel(DashboardBaseModel):
+    kpi: DashboardKpiModel = Field(default_factory=DashboardKpiModel)
     trend_7d: list[Trend7dItemModel] = Field(
         default_factory=list,
         alias='trend7d',                       # ← 关键
@@ -162,8 +162,8 @@ class CockpitOverviewModel(CockpitBaseModel):
 
 ```bash
 $ ./venv/bin/python -c "
-from module_biz.entity.vo.cockpit_vo import CockpitOverviewModel
-m = CockpitOverviewModel(trend_7d=[])
+from module_biz.entity.vo.dashboardrd_vo import DashboardOverviewModel
+m = DashboardOverviewModel(trend_7d=[])
 print(sorted(m.model_dump(by_alias=True, mode='json').keys()))
 "
 ['channelLocations', 'generatedAt', 'kpi', 'province', 'recentApprovals',
@@ -171,7 +171,7 @@ print(sorted(m.model_dump(by_alias=True, mode='json').keys()))
 ```
 
 ```bash
-$ curl -X GET .../biz/cockpit/overview ...
+$ curl -X GET .../biz/dashboard/overview ...
 {
   "data": {
     ...,
@@ -224,8 +224,8 @@ Code review 时凡是看到形如 `xxx_yN` 或 `xxx_y_N`（其中 `y` 是数字�
 
 ## 6. 关联决策 / 影响范围
 
-- **关联 ADR**：D28（Pydantic 别名显式声明）、D24（API 字段命名一致性 + camelCase）、D29（战略驾驶舱大屏形态）
+- **关联 ADR**：D28（Pydantic 别名显式声明）、D24（API 字段命名一致性 + camelCase）、D29（仪表盘大屏形态）
 - **影响范围**：
-  - 当前唯一影响：`module_biz/entity/vo/cockpit_vo.py` 一处
+  - 当前唯一影响：`module_biz/entity/vo/dashboard_vo.py` 一处
   - 项目其他 Pydantic 模型已扫描，无同类字段
-  - 前端 `dashboard.vue` / `views/biz/cockpit/index.vue` 都在 route layer 调 `/biz/cockpit/overview`，本修复对两端立即生效
+  - 前端 `dashboard.vue` / `views/biz/dashboard/index.vue` 都在 route layer 调 `/biz/dashboard/overview`，本修复对两端立即生效

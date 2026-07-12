@@ -106,7 +106,7 @@
 
 > 以下是 v3.0 commit message 里记录的"v3.0 hotfix（菜单 SQL）"段，实际是与原路线图最不一致的几点：
 
-1. **menu_id 错位**：早期版本错把 channel/invoice/finance/operation 写成 menu_id 9-11，与审批菜单 menu_id=8 冲突。**已 DELETE 清理 9-11**，改用 **12/14/15/16 让出 13 给路线 B 战略驾驶舱**。
+1. **menu_id 错位**：早期版本错把 channel/invoice/finance/operation 写成 menu_id 9-11，与审批菜单 menu_id=8 冲突。**已 DELETE 清理 9-11**，改用 **12/14/15/16 让出 13 给路线 B 仪表盘**。
 2. **parent_id**：从 `parent_id=0`（顶级）改为 `parent_id=5`（业务管理父菜单），与审批 menu_id=8 风格一致。
 3. **path 路径**：必须写**完整路径** `biz/channel`（含父级前缀），与 v2.6 修正后的 contract/customer 风格一致。最初草稿写的是 `channel`，**已修正**。
 4. **perms 去掉 `biz:` 前缀**：与 controller `UserInterfaceAuthDependency` 一致，例如 `channel:list` 而不是 `biz:channel:list`。
