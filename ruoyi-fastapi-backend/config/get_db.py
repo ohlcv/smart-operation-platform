@@ -2,7 +2,7 @@ from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config.database import AsyncSessionLocal, Base, async_engine
+from config.database import AsyncSessionLocal, async_engine
 from utils.log_util import logger
 
 
@@ -15,22 +15,6 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
     async with AsyncSessionLocal() as current_db:
         yield current_db
-
-
-async def init_create_table() -> None:
-    """
-    应用启动时初始化数据库连接
-
-    已废弃（v4.0 重构）：schema 演进由 Alembic 接管，本函数保留为「create_all 兜底」，
-    确保即使 alembic 因历史原因未跑通，也能用 ORM 兜底建表。
-    Alembic upgrade head 必须在 init_create_table 之前调用。
-
-    :return:
-    """
-    logger.info('🔎 兜底建表检查（alembic upgrade head 已先行）...')
-    async with async_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.info('✅️ 数据库连接成功')
 
 
 async def run_alembic_upgrade() -> None:

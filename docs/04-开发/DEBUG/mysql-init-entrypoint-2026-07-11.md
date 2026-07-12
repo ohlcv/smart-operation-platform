@@ -54,7 +54,7 @@ docker run \
   # 只挂了 1 个 SQL，biz 相关全漏
 ```
 
-**后果**：biz 三张表由 ORM `Base.metadata.create_all()` 自动建了表结构，但：
+**后果**：biz 三张表在旧架构下由 ORM `Base.metadata.create_all()` 自动建了表结构，但：
 
 - ❌ 无种子数据（INSERT 脚本未执行）
 - ❌ 无菜单/角色/字典（business SQL 脚本未执行）

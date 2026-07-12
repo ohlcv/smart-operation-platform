@@ -41,9 +41,13 @@ ruoyi-fastapi-backend/
 │   ├── dao/
 │   ├── entity/do/
 │   └── templates/                # 前后端代码模板
-├── sql/                          # 数据库初始化脚本
-│   ├── ruoyi-fastapi.sql         # MySQL
-│   └── ruoyi-fastapi-pg.sql      # PostgreSQL
+├── sql/                          # 数据库初始化脚本（v4.0 重构）
+│   ├── 00-bootstrap.sql          # MySQL 冷启动：仅 CREATE DATABASE
+│   └── _legacy_init/             # v3.x 历史 init SQL（已冻结，仅供参考）
+│       ├── ruoyi-fastapi.sql     # RuoYi 原生 sys_* 全套 → 已迁移至 alembic/versions/0001_baseline_sys_ruoyi.py
+│       ├── ruoyi-fastapi-pg.sql  # PostgreSQL 版本（未启用）
+│       ├── biz_init.sql          # biz_* 表 + 种子 → 已拆分至 0002_baseline_biz.py + 0004_seed_biz.py
+│       └── ...
 ├── tests/                        # 测试
 ├── utils/                        # 工具类
 ├── alembic/                      # 数据库迁移

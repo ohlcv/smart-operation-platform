@@ -20,7 +20,7 @@
 File "/app/app.py", line 22, in <module>
     from server import create_app
   File "/app/server.py", line 10, in <module>
-    from config.get_db import close_async_engine, init_create_table, run_alembic_upgrade
+    from config.get_db import close_async_engine, run_alembic_upgrade
   File "/app/config/get_db.py", line 15
     async with AsyncSessionLocal() as current_db:
                     ^^^^^^^^^^^^^^^^^^^^
@@ -109,7 +109,7 @@ grep -rn "^def .* ->.*Async" --include="*.py" ruoyi-fastapi-backend/
 ```bash
 cd /Users/meow/Desktop/Project/smart-operation-platform/ruoyi-fastapi-backend
 python3 -m py_compile config/get_db.py   # ✅ syntax OK
-python3 -c "from config.get_db import get_db, init_create_table, run_alembic_upgrade, close_async_engine"  # ✅ 不报错
+python3 -c "from config.get_db import get_db, run_alembic_upgrade, close_async_engine"  # ✅ 不报错
 ```
 
 服务器重跑：

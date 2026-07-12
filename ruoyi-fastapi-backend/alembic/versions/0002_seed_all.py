@@ -1,26 +1,33 @@
-"""seed sys data：sys_dept / sys_user / sys_role / sys_menu / sys_dict_*
+"""seed all data：sys_* + biz_* 全部种子数据（v4.0 合并版）
 
-Revision ID: 0003_seed_sys
-Revises: 0002_baseline_biz
-Create Date: 2026-07-12 18:30:00.000000
+Revision ID: 0002_seed_all
+Revises: 0001_baseline_all
+Create Date: 2026-07-12 22:30:00.000000
 
-v4.0 重构：
-- 把原 sql/ruoyi-fastapi.sql 的 sys_dict_* 种子数据 + sql/approval_init.sql 的
-  sys_user / sys_role 种子数据合并到此
+v4.0 重构：把原 0003_seed_sys + 0004_seed_biz + 0005_seed_sys_config 合并为一个 seed
 - 使用 INSERT IGNORE 保持幂等（重复执行不报错）
 - 7 个审批测试用户的 bcrypt hash 与原 SQL 一致
+- admin 同时绑定 8 个角色（隐藏超管 role_id=1 + 7 个审批角色）确保 super admin 权限生效
+- sys_config 8 条默认配置（修复验证码开关失效问题）
+
+注意：admin 绑 (1,1) 是关键，原 0003 漏了这一行导致 super admin 分支不生效
 """
 from __future__ import annotations
 
 from alembic import op
 
-revision = '0003_seed_sys'
-down_revision = '0002_baseline_biz'
+
+revision = '0002_seed_all'
+down_revision = '0001_baseline_all'
 branch_labels = None
 depends_on = None
 
 
 def upgrade() -> None:
+    # ============================================================
+    # Part 1: sys_* 种子数据（部门 / 角色 / 用户 / 权限 / 菜单 / 字典 / 配置）
+    # ============================================================
+
     # ============== sys_dept（年糕集团 9 个部门） ==============
     op.execute("""
         INSERT IGNORE INTO sys_dept (dept_id, parent_id, ancestors, dept_name, order_num, leader, phone, email, status, del_flag, create_by, create_time, update_by, update_time)
@@ -38,7 +45,7 @@ def upgrade() -> None:
     """)
 
     # ============== sys_role（admin + common + 7 个审批角色） ==============
-    # 注意：D02 role_sort 规范：admin=0（隐藏超管）、common=99（非审批 sentinel）、3-9=7级审批链
+    # D02 role_sort 规范：admin=0（隐藏超管）、common=99（非审批 sentinel）、3-9=7级审批链
     op.execute("""
         INSERT IGNORE INTO sys_role (role_id, role_name, role_key, role_sort, data_scope, menu_check_strictly, dept_check_strictly, status, del_flag, create_by, create_time, remark)
         VALUES
@@ -86,10 +93,11 @@ def upgrade() -> None:
            '0', '0', '', NOW(), NOW(), 'admin', NOW(), '', NULL, 'Step 6 测试账号 / 密码 123456');
     """)
 
-    # ============== sys_user_role：admin 同时是 7 个审批角色（便于自己提交审批） ==============
+    # ============== sys_user_role：admin = 隐藏超管(1) + 7 个审批角色 ==============
+    # 关键：必须包含 (1, 1)，否则 get_info 不走 super admin 分支，权限全空
     op.execute("""
         INSERT IGNORE INTO sys_user_role (user_id, role_id) VALUES
-          (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8), (1, 9),
+          (1, 1), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8), (1, 9),
           (101, 3), (102, 4), (103, 5), (104, 6), (105, 7), (106, 8), (107, 9);
     """)
 
@@ -136,6 +144,22 @@ def upgrade() -> None:
           (2, 5), (2, 6), (2, 7), (2, 8), (2, 12), (2, 14), (2, 15), (2, 16), (2, 13);
     """)
 
+    # ============== sys_config（RuoYi 8 条默认配置，修复验证码开关失效） ==============
+    # 原 0003 漏了 sys_config 的种子数据，导致 init_cache_sys_config_services 把空表
+    # 灌进 Redis，登录接口读 captcha_enabled=None → None == 'true' 为 False → 跳过验证码
+    op.execute("""
+        INSERT IGNORE INTO sys_config (config_id, config_name, config_key, config_value, config_type, create_by, create_time, update_by, update_time, remark)
+        VALUES
+          (1, '主框架页-默认皮肤样式名称',         'sys.index.skinName',              'skin-blue',     'Y', 'admin', NOW(), '', NULL, '蓝色 skin-blue、绿色 skin-green、紫色 skin-purple、红色 skin-red、黄色 skin-yellow'),
+          (2, '用户管理-账号初始密码',             'sys.user.initPassword',           '123456',        'Y', 'admin', NOW(), '', NULL, '初始化密码 123456'),
+          (3, '主框架页-侧边栏主题',               'sys.index.sideTheme',             'theme-dark',    'Y', 'admin', NOW(), '', NULL, '深色主题theme-dark，浅色主题theme-light'),
+          (4, '账号自助-验证码开关',               'sys.account.captchaEnabled',      'true',          'Y', 'admin', NOW(), '', NULL, '是否开启验证码功能（true开启，false关闭）'),
+          (5, '账号自助-是否开启用户注册功能',     'sys.account.registerUser',        'false',         'Y', 'admin', NOW(), '', NULL, '是否开启注册用户功能（true开启，false关闭）'),
+          (6, '用户登录-黑名单列表',               'sys.login.blackIPList',           '',              'Y', 'admin', NOW(), '', NULL, '设置登录IP黑名单限制，多个匹配项以;分隔，支持匹配（*通配、网段）'),
+          (7, '用户管理-初始密码修改策略',         'sys.account.initPasswordModify',  '1',             'Y', 'admin', NOW(), '', NULL, '0：初始密码修改策略关闭，没有任何提示，1：提醒用户，如果未修改初始密码，则在登录时就会提醒修改密码对话框'),
+          (8, '用户管理-账号密码更新周期',         'sys.account.passwordValidateDays','0',             'Y', 'admin', NOW(), '', NULL, '密码更新周期（填写数字，数据初始化值为0不限制，若修改必须为大于0小于365的正整数），如果超过这个周期登录系统时，则在登录时就会提醒修改密码对话框');
+    """)
+
     # ============== sys_dict_type（RuoYi 原生 + 业务字典） ==============
     op.execute("""
         INSERT IGNORE INTO sys_dict_type (dict_id, dict_name, dict_type, status, create_by, create_time, remark)
@@ -158,7 +182,7 @@ def upgrade() -> None:
           (103, '客户类型', 'customer_type', '0', 'admin', NOW(), '客户档案分类');
     """)
 
-    # ============== sys_dict_data（精简常用值，AI 模型列表此处不重复，与 ruoyi-fastapi.sql 保持一致可在后续补丁追加） ==============
+    # ============== sys_dict_data（精简常用值） ==============
     op.execute("""
         INSERT IGNORE INTO sys_dict_data (dict_code, dict_sort, dict_label, dict_value, dict_type, css_class, list_class, is_default, status, create_by, create_time, remark)
         VALUES
@@ -208,13 +232,89 @@ def upgrade() -> None:
           (112, 4, '出版社', 'publish', 'customer_type', '', '', 'N', '0', 'admin', NOW(), '出版社客户');
     """)
 
+    # ============================================================
+    # Part 2: biz_* 业务种子数据
+    # ============================================================
+
+    # ============== biz_customer（5 个客户 + 省份 v3.3 路线 C） ==============
+    op.execute("""
+        INSERT IGNORE INTO biz_customer
+          (id, customer_code, customer_name, customer_type, contact_name, contact_phone, address, province, level, status, created_by, create_time, remark)
+        VALUES
+          (1, 'KH-001', '济南新华书店',     'publish', '王经理', '13900000001', '济南市市中区胜利大街56号', '山东', 'A', 1, 1, NOW(), '战略合作客户'),
+          (2, 'KH-002', '青岛出版发行集团', 'publish', '李主任', '13900000002', '青岛市市南区香港中路26号', '浙江', 'A', 1, 1, NOW(), '数字出版核心客户'),
+          (3, 'KH-003', '泰山景区管委会',   'scenic',  '张科长', '13900000003', '泰安市岱宗大街',         '广东', 'A', 1, 1, NOW(), '景区发行重点客户'),
+          (4, 'KH-004', '山东文旅集团',     'agency',  '赵总',   '13900000004', '济南市经四路',           '北京', 'B', 1, 1, NOW(), '旅行社渠道'),
+          (5, 'KH-005', '曲阜孔子文化园',   'scenic',  '陈馆长', '13900000005', '曲阜市明故城',           '四川', 'B', 1, 1, NOW(), '景区发行');
+    """)
+
+    # ============== biz_contract（3 个合同；province 由 customer 派生） ==============
+    op.execute("""
+        INSERT IGNORE INTO biz_contract
+          (id, contract_no, title, contract_type, party_a, party_b, amount, sign_date, department, business_type, customer_id, customer_name, province, status, current_step, current_role, reject_count, created_by, created_by_name, create_time, remark)
+        VALUES
+          (1, 'HT-2026-001', '济南新华书店图书采购合同', 'payment',  '济南新华书店',     '山东出版供应链管理公司', 500000.00,   '2026-07-05', '业务部',     '景区门票', 1, '济南新华书店',     '山东', 'pending',  1, 'business_reviewer', 0, 2, '年糕', NOW(), '示范合同：审批中'),
+          (2, 'HT-2026-002', '青岛数字出版合作协议',     'business', '青岛出版发行集团', '山东出版供应链管理公司', 300000.00,   '2026-07-08', '数字业务部', '数字出版', 2, '青岛出版发行集团', '浙江', 'draft',    0, NULL,                0, 2, '年糕', NOW(), '示范合同：草稿'),
+          (3, 'HT-2026-003', '泰山景区票务系统对接',     'business', '泰山景区管委会',   '山东出版供应链管理公司', 1200000.00,  '2026-07-10', '技术部',     '景区门票', 3, '泰山景区管委会',   '广东', 'approved', 6, 'invest_director',    0, 2, '年糕', NOW(), '示范合同：已通过');
+    """)
+
+    # ============== biz_channel（4 个渠道 + v3.3 路线 C 位置坐标） ==============
+    op.execute("""
+        INSERT IGNORE INTO biz_channel
+          (id, channel_code, channel_name, category, contact_name, contact_phone, platform_url, account, password, commission_rate, province, city, lng, lat, status, sort_order, description, created_by, created_by_name, create_time, remark)
+        VALUES
+          (1, 'QD-001', '美团到综（景区合作）',  'meituan',   '美团商务',  '400-009-9888', 'https://www.meituan.com', 'meituan_biz_01', 'demo_pwd', 0.0500, '北京', '北京', 116.40, 39.90, 1, 0, '美团综合业务：景区门票/酒店/餐饮', 1, 'admin', NOW(), '示范渠道：美团到综'),
+          (2, 'QD-002', '抖音生活服务',          'douyin',    '抖音商务',  '400-822-2288', 'https://www.douyin.com',  'dy_biz_01',      'demo_pwd', 0.0600, '北京', '北京', 116.40, 39.90, 1, 0, '抖音本地生活服务',               1, 'admin', NOW(), '示范渠道：抖音生活'),
+          (3, 'QD-003', '携程商旅',              'ctrip',     '携程商务',  '400-819-9999', 'https://www.ctrip.com',   'ctrip_biz_01',   'demo_pwd', 0.0450, '上海', '上海', 121.47, 31.23, 1, 0, '携程商旅业务',                   1, 'admin', NOW(), '示范渠道：携程商旅'),
+          (4, 'QD-004', '同程旅行（OTA 直连）',  'tongcheng', '同程商务',  '400-100-7777', 'https://www.ly.com',      'tongcheng_biz',  'demo_pwd', 0.0480, '江苏', '苏州', 120.62, 31.32, 1, 0, '同程旅行 OTA 直连',             1, 'admin', NOW(), '示范渠道：同程旅行');
+    """)
+
+    # ============== biz_invoice（1 张示范发票：与合同 HT-2026-003 1:1 关联） ==============
+    op.execute("""
+        INSERT IGNORE INTO biz_invoice
+          (id, invoice_no, contract_id, contract_no, invoice_type, amount, tax_rate, tax_amount, party_name, party_tax_no, status, apply_date, issue_date, created_by, created_by_name, create_time, remark)
+        VALUES
+          (1, 'FP-0001', 3, 'HT-2026-003', 'specialized', 1200000.00, 0.1300, 138053.10, '泰山景区管委会', '91910000123456789X', 'issued', '2026-07-10', '2026-07-11', 1, 'admin', NOW(), '示范发票：与 HT-2026-003 关联');
+    """)
+
+    # ============== biz_finance_entry（1 条示范流水：与 FP-0001 关联） ==============
+    op.execute("""
+        INSERT IGNORE INTO biz_finance_entry
+          (id, entry_no, entry_type, direction, invoice_id, invoice_no, contract_id, contract_no, party_name, amount, account, account_name, bank_name, transaction_date, cleared, created_by, created_by_name, create_time, remark)
+        VALUES
+          (1, 'FN-0001', 'receivable', 'in', 1, 'FP-0001', 3, 'HT-2026-003', '泰山景区管委会', 1200000.00, '6225880123456789', '山东出版供应链管理公司', '工商银行济南分行', '2026-07-11', 0, 1, 'admin', NOW(), '示范应收：与 FP-0001 关联');
+    """)
+
+    # ============== biz_operation（3 期经营数据：2025-07 / 2026-06 / 2026-07） ==============
+    op.execute("""
+        INSERT IGNORE INTO biz_operation
+          (id, period, period_type, business_line, revenue, cost, gross_profit, customer_count, contract_count, avg_order_value, created_by, created_by_name, create_time, remark)
+        VALUES
+          (1, '2025-07', 'month', NULL, 3800000.00, 2800000.00, 1000000.00, 25, 8,  475000.00, 1, 'admin', NOW(), '去年同期'),
+          (2, '2026-06', 'month', NULL, 4500000.00, 3200000.00, 1300000.00, 32, 10, 450000.00, 1, 'admin', NOW(), '上月'),
+          (3, '2026-07', 'month', NULL, 5200000.00, 3500000.00, 1700000.00, 35, 12, 433333.33, 1, 'admin', NOW(), '当月（含 HT-2026-003 已开票）');
+    """)
+
 
 def downgrade() -> None:
-    # seed 不支持完全 downgrade（会丢 admin / 业务字典）；这里只清非核心数据
+    """downgrade：清空种子数据（按依赖反向）"""
+    # biz 业务数据（按依赖反向：operation → finance → invoice → channel → contract → customer）
+    op.execute("DELETE FROM biz_operation;")
+    op.execute("DELETE FROM biz_finance_entry;")
+    op.execute("DELETE FROM biz_invoice;")
+    op.execute("DELETE FROM biz_channel;")
+    op.execute("DELETE FROM biz_contract;")
+    op.execute("DELETE FROM biz_customer;")
+    # sys 业务字典（dict_code >= 100）
     op.execute("DELETE FROM sys_dict_data WHERE dict_code >= 100;")
     op.execute("DELETE FROM sys_dict_type WHERE dict_id >= 100;")
-    op.execute("DELETE FROM sys_role_menu WHERE role_id IN (3, 4, 5, 6, 7, 8, 9);")
+    # sys config
+    op.execute("DELETE FROM sys_config;")
+    # sys 角色菜单（先清关联，再清角色）
+    op.execute("DELETE FROM sys_role_menu;")
     op.execute("DELETE FROM sys_user_role WHERE user_id IN (101, 102, 103, 104, 105, 106, 107);")
+    op.execute("DELETE FROM sys_user_role WHERE user_id = 1;")
     op.execute("DELETE FROM sys_user WHERE user_id IN (101, 102, 103, 104, 105, 106, 107);")
     op.execute("DELETE FROM sys_role WHERE role_id IN (3, 4, 5, 6, 7, 8, 9);")
     op.execute("DELETE FROM sys_menu WHERE menu_id IN (5, 6, 7, 8, 12, 13, 14, 15, 16);")
+    op.execute("DELETE FROM sys_dept WHERE dept_id >= 100;")
