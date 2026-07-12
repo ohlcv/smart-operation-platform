@@ -840,7 +840,7 @@ class DashboardMetricBuilder:
     """
     首页指标卡构建器。
 
-    该对象负责根据健康检查、数据库和缓存状态构建首页驾驶舱指标卡。
+    该对象负责根据健康检查、数据库和缓存状态构建首页仪表盘指标卡。
 
     :param formatting: 首页仪表盘格式化支持对象
     """
@@ -861,7 +861,7 @@ class DashboardMetricBuilder:
         cache_payload: dict[str, Any] | None,
     ) -> list[DashboardMetricSnapshot]:
         """
-        构建首页驾驶舱指标卡。
+        构建首页仪表盘指标卡。
 
         :param doctor_payload: 健康检查负载
         :param database_payload: 数据库状态负载

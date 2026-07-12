@@ -1,4 +1,4 @@
-"""战略驾驶舱 DAO：只读聚合查询。
+"""仪表盘 DAO：只读聚合查询。
 
 只读取已完成模块的表：
 - biz_contract         （合同）
@@ -13,13 +13,13 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import and_, case, func, select, text
+from sqlalchemy import and_, func, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from module_biz.entity.do.contract_do import BizContract
 from module_biz.entity.do.approval_do import BizApproval
-from module_biz.entity.vo.cockpit_vo import (
+from module_biz.entity.vo.dashboard_vo import (
     AiDiagnoseModel,
     AiRiskItemModel,
     AiSuggestionItemModel,
@@ -33,8 +33,8 @@ from module_biz.entity.vo.cockpit_vo import (
 )
 
 
-class CockpitDAO:
-    """驾驶舱聚合查询。全部只读，无 INSERT/UPDATE/DELETE。"""
+class DashboardDAO:
+    """仪表盘聚合查询。全部只读，无 INSERT/UPDATE/DELETE。"""
 
     # ---------------- KPI ----------------
 

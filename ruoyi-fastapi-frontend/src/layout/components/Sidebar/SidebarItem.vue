@@ -83,7 +83,7 @@ function resolvePath(routePath, routeQuery) {
   if (isExternal(props.basePath)) {
     return props.basePath
   }
-  // 绝对路径直接返回，避免 basePath='' + '/'+ '/cockpit' 拼出 '//cockpit'
+  // 绝对路径直接返回，避免 basePath='' + '/'+ '/dashboard' 拼出 '//dashboard'
   if (routePath.startsWith('/')) {
     return getNormalPath(routePath)
   }

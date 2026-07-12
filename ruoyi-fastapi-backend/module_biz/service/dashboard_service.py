@@ -1,6 +1,6 @@
-"""战略驾驶舱 Service 层。
+"""仪表盘 Service 层。
 
-按 docs/04-开发/开发计划/路线B-大屏可视化优先.md §2.1 实现。
+按 docs/04-开发/开发计划/仪表盘开发计划.md §2.1 实现。
 
 聚合 6 个数据源：
 - 合同 KPI / 7 日趋势 / 状态分布 / Top10 客户
@@ -26,8 +26,8 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from module_admin.entity.vo.user_vo import CurrentUserModel
-from module_biz.dao.cockpit_dao import CockpitDAO
-from module_biz.entity.vo.cockpit_vo import AiDiagnoseModel, CockpitOverviewModel
+from module_biz.dao.dashboard_dao import DashboardDAO
+from module_biz.entity.vo.dashboard_vo import AiDiagnoseModel, DashboardOverviewModel
 
 
 # 简单的模块级缓存（线程安全的 dict + 时间戳）
@@ -69,20 +69,20 @@ def _current_user_role_keys(current_user: CurrentUserModel | None) -> list[str]:
     return role_keys
 
 
-class CockpitService:
+class DashboardService:
     @staticmethod
     async def overview_services(
         db: AsyncSession,
         current_user: CurrentUserModel | None,
         province: str = '',
     ) -> dict[str, Any]:
-        """GET /biz/cockpit/overview 主入口。
+        """GET /biz/dashboard/overview 主入口（v3.6 URL 迁到 /biz/dashboard/）。
 
         60s 缓存：相同 province + user_id 60s 内返回同一份数据。
         v3.3：DAO 改 asyncio.gather 并发，9 个 SQL 并发执行。
         """
         uid = (current_user.user.user_id if current_user and current_user.user else 0)
-        cache_key = f"cockpit_overview_{uid}_{province or 'national'}"
+        cache_key = f"dashboard_overview_{uid}_{province or 'national'}"
         cached = _cache_get(cache_key)
         if cached is not None:
             return cached
@@ -102,16 +102,16 @@ class CockpitService:
             recent_approvals,
             channel_locations,
         ) = await asyncio.gather(
-            CockpitDAO.kpi_contract(db, province),
-            CockpitDAO.kpi_customer(db),
-            CockpitDAO.kpi_channel(db),
-            CockpitDAO.kpi_invoice_pending(db),
-            CockpitDAO.kpi_approval_pending(db, role_keys),
-            CockpitDAO.trend_7d(db, province),
-            CockpitDAO.status_distribution(db, province),
-            CockpitDAO.top_customers(db, province),
-            CockpitDAO.recent_approvals(db),
-            CockpitDAO.channel_locations(db),
+            DashboardDAO.kpi_contract(db, province),
+            DashboardDAO.kpi_customer(db),
+            DashboardDAO.kpi_channel(db),
+            DashboardDAO.kpi_invoice_pending(db),
+            DashboardDAO.kpi_approval_pending(db, role_keys),
+            DashboardDAO.trend_7d(db, province),
+            DashboardDAO.status_distribution(db, province),
+            DashboardDAO.top_customers(db, province),
+            DashboardDAO.recent_approvals(db),
+            DashboardDAO.channel_locations(db),
         )
 
         kpi_payload = {
@@ -122,7 +122,7 @@ class CockpitService:
             'approvalPending': kpi_approval,
         }
 
-        overview = CockpitOverviewModel(
+        overview = DashboardOverviewModel(
             kpi=kpi_payload,  # type: ignore[arg-type]
             trend_7d=trend_7d,
             status_distribution=status_distribution,
@@ -142,18 +142,18 @@ class CockpitService:
         db: AsyncSession,
         current_user: CurrentUserModel | None,
     ) -> dict[str, Any]:
-        """GET /biz/cockpit/ai-diagnose 主入口。
+        """GET /biz/dashboard/ai-diagnose 主入口（v3.6 URL 迁到 /biz/dashboard/）。
 
         AI 智能大脑：6 维雷达 + 风险诊断 + 资金建议。
         30s 缓存（数据时效更敏感）。
         """
         uid = (current_user.user.user_id if current_user and current_user.user else 0)
-        cache_key = f"cockpit_ai_diagnose_{uid}"
+        cache_key = f"dashboard_ai_diagnose_{uid}"
         cached = _cache_get(cache_key)
         if cached is not None and time.time() - _CACHE[cache_key][0] < 30:
             return cached
 
         role_keys = _current_user_role_keys(current_user)
-        result = await CockpitDAO.ai_diagnose(db, role_keys)
+        result = await DashboardDAO.ai_diagnose(db, role_keys)
         _cache_set(cache_key, result.model_dump(by_alias=True, mode='json'))
         return result.model_dump(by_alias=True, mode='json')

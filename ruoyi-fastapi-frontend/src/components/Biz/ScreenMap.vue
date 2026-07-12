@@ -10,14 +10,14 @@
 
 <script setup>
 /**
- * 战略驾驶舱地图组件（v3.3 路线 C 升级）
+ * 仪表盘地图组件（v3.3 路线 C 升级：省份联动 + 真实坐标 + 中枢高亮）
  *
  * 特性：
  * - demo1 同款：effectScatter 节点 + lines 物流飞线 + 中枢高亮（hub 默认北京）
  * - province-click 事件：点击省份时 emit 给父组件做 KPI 联动
  * - hub 可配置（demo1 默认「山东省」，本项目统一改「北京」作为集团总部所在地）
  *
- * 与 /biz/cockpit/overview 的 channel_locations 数据契约：
+ * 与 /biz/dashboard/overview 的 channel_locations 数据契约：
  *   { channelId, channelName, lng, lat, contractCount, city }
  */
 import { ref, shallowRef, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'

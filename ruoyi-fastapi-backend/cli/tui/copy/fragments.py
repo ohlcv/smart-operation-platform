@@ -59,7 +59,7 @@ NAVIGATION_DESCRIPTIONS = {
 
 DASHBOARD_HERO_COPY = {
     'subtitle': '先看整体风险和巡检结论，再进入数据库、缓存、任务等分区继续定位',
-    'title': '运行驾驶舱',
+    'title': '运行仪表盘',
 }
 
 STATUS_PANEL_COPY = {

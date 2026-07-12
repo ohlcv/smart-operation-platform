@@ -171,7 +171,7 @@ class StatusPanel(Static):
 
 class MetricPanel(Static):
     """
-    TUI 首页驾驶舱指标卡组件。
+    TUI 首页仪表盘指标卡组件。
 
     :param title: 指标标题
     :param value: 指标主值

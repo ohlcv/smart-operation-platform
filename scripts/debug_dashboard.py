@@ -1,6 +1,6 @@
-"""排查 cockpit 空白页：登录 → /getRouters → /biz/cockpit/overview
+"""排查仪表盘空白页：登录 → /getRouters → /biz/dashboard/overview
 
-用法：python scripts/debug_cockpit.py
+用法：python scripts/debug_dashboard.py
 """
 import json
 import sys
@@ -33,7 +33,6 @@ def _req(method, path, token=None, body=None, is_form=False, timeout=10):
 
 
 def try_login(username, password):
-    # 1) 拿 captcha 的 uuid（用空 code 可绕过验证：RuoYi 仅校验 captchaEnabled=true 时的非空 code）
     _, cap = _req("GET", "/captchaImage")
     try:
         uuid = json.loads(cap).get("uuid", "")
@@ -78,27 +77,29 @@ def get_routers(token):
         print(f"  - name={r.get('name')!r} path={r.get('path')!r} component={r.get('component')!r} hidden={r.get('hidden')} children={len(children)}")
         for c in children:
             print(f"      child: path={c.get('path')!r} component={c.get('component')!r}")
-    print("\n  找 cockpit:")
+    print("\n  找 dashboard 相关菜单:")
     found = False
     for r in data:
-        if "cockpit" in (r.get("path") or "").lower():
+        rp = (r.get("path") or "").lower()
+        rc = (r.get("component") or "").lower()
+        if "dashboard" in rp or "dashboard" in rc:
             print(f"  ★ FOUND 顶级: path={r.get('path')!r} component={r.get('component')!r}")
             print(f"    raw: {json.dumps(r, ensure_ascii=False)[:600]}")
             found = True
         for c in (r.get("children") or []):
             cp = (c.get("path") or "").lower()
             cc = (c.get("component") or "").lower()
-            if "cockpit" in cp or "cockpit" in cc:
+            if "dashboard" in cp or "dashboard" in cc:
                 print(f"  ★ FOUND 子: path={c.get('path')!r} component={c.get('component')!r}")
                 print(f"    raw: {json.dumps(c, ensure_ascii=False)[:600]}")
                 found = True
     if not found:
-        print("  ⚠️ 路由列表中没找到 cockpit 相关菜单！")
+        print("  ⚠️ 路由列表中没找到 dashboard 相关菜单！")
 
 
-def call_cockpit(token):
-    code, body = _req("GET", "/biz/cockpit/overview", token=token)
-    print(f"\n[cockpit/overview] HTTP {code}")
+def call_dashboard(token):
+    code, body = _req("GET", "/biz/dashboard/overview", token=token)
+    print(f"\n[dashboard/overview] HTTP {code}")
     if code != 200:
         print(f"  body: {body[:800]}")
         return
@@ -128,7 +129,7 @@ def main():
         return 1
     print(f"\n✅ TOKEN 长度: {len(token)}")
     get_routers(token)
-    call_cockpit(token)
+    call_dashboard(token)
     return 0
 
 

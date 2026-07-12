@@ -1,4 +1,4 @@
-"""v3.3 路线 C 大屏回归脚本：验证 /biz/cockpit/overview + /biz/cockpit/ai-diagnose 端到端。"""
+"""v3.3 路线 C 大屏回归脚本：验证 /biz/dashboard/overview + /biz/dashboard/ai-diagnose 端到端（v3.6 URL 迁移）。"""
 import json
 import sys
 import time
@@ -54,10 +54,10 @@ def call(method, path, params=None):
         return {'code': -1, 'msg': str(e)}
 
 
-# 3) cockpit/overview 全国
-print('\n=== cockpit/overview 全国 ===')
-res = call('GET', '/biz/cockpit/overview')
-print(f'[GET /biz/cockpit/overview] code={res.get("code")} msg={res.get("msg")}')
+# 3) dashboard/overview 全国
+print('\n=== dashboard/overview 全国 ===')
+res = call('GET', '/biz/dashboard/overview')
+print(f'[GET /biz/dashboard/overview] code={res.get("code")} msg={res.get("msg")}')
 if res.get('code') == 200:
     data = res['data']
     print(f'  province={data.get("province")!r}')
@@ -70,7 +70,6 @@ if res.get('code') == 200:
     print(f'  topCustomers count={len(data.get("topCustomers", []))}')
     print(f'  recentApprovals count={len(data.get("recentApprovals", []))}')
     print(f'  channelLocations count={len(data.get("channelLocations", []))}')
-    # 关键 camelCase 字段校验
     expected_camel = {'contractTotal', 'contractPending', 'customerTotal', 'channelTotal',
                        'contractMonthAmount', 'trend7d', 'statusDistribution',
                        'topCustomers', 'recentApprovals', 'channelLocations'}
@@ -81,10 +80,10 @@ else:
     print(f'  FAIL: {res}')
     sys.exit(1)
 
-# 4) cockpit/overview 带 province 过滤
-print('\n=== cockpit/overview province=北京 ===')
-res2 = call('GET', '/biz/cockpit/overview', {'province': '北京'})
-print(f'[GET /biz/cockpit/overview?province=北京] code={res2.get("code")} msg={res2.get("msg")}')
+# 4) dashboard/overview 带 province 过滤
+print('\n=== dashboard/overview province=北京 ===')
+res2 = call('GET', '/biz/dashboard/overview', {'province': '北京'})
+print(f'[GET /biz/dashboard/overview?province=北京] code={res2.get("code")} msg={res2.get("msg")}')
 if res2.get('code') == 200:
     data2 = res2['data']
     print(f'  province={data2.get("province")!r}')
@@ -97,9 +96,9 @@ else:
     print(f'  WARN province 接口返回非 200: {res2}')
 
 # 5) ai-diagnose
-print('\n=== cockpit/ai-diagnose ===')
-res3 = call('GET', '/biz/cockpit/ai-diagnose')
-print(f'[GET /biz/cockpit/ai-diagnose] code={res3.get("code")} msg={res3.get("msg")}')
+print('\n=== dashboard/ai-diagnose ===')
+res3 = call('GET', '/biz/dashboard/ai-diagnose')
+print(f'[GET /biz/dashboard/ai-diagnose] code={res3.get("code")} msg={res3.get("msg")}')
 if res3.get('code') == 200:
     ai = res3['data']
     print(f'  summary={ai.get("summary", "")[:80]}...')

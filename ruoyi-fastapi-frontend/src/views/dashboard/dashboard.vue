@@ -1,5 +1,6 @@
 <template>
-  <div class="ds" :class="{ 'ds-full': fullscreen }">
+  <!-- v3.6：扁平路由，去掉 ds-full 切换 -->
+  <div class="ds">
     <!-- 顶部标题栏 -->
     <header class="screen-head">
       <div class="head-side left">
@@ -10,17 +11,14 @@
         <span v-if="province" class="back-region" @click="resetNational">← 返回全国</span>
       </div>
       <h1 class="head-title">
-        <span class="title-cn">智能运营平台 · 数据驾驶舱</span>
-        <span class="title-en">SMART OPERATION PLATFORM · DATA COCKPIT</span>
+        <span class="title-cn">智能运营平台 · 数据仪表盘</span>
+        <span class="title-en">SMART OPERATION PLATFORM · DATA DASHBOARD</span>
       </h1>
       <div class="head-side right">
         <span class="clock">{{ clock }}</span>
         <span class="sep">|</span>
         {{ today }}
-        <el-button class="scr-btn" size="small" round @click="toggleScreen">
-          <el-icon><component :is="fullscreen ? 'Close' : 'FullScreen'" /></el-icon>
-          <span>{{ fullscreen ? '退出' : '全屏投放' }}</span>
-        </el-button>
+        <!-- v3.5：删除「全屏投放」按钮，仅保留普通布局大屏；真实全屏用浏览器原生 F11 -->
       </div>
     </header>
 
@@ -117,52 +115,28 @@
 
 <script setup>
 /**
- * 战略驾驶舱 - 真·大屏（v3.3 路线 C）
+ * 仪表盘 - 真·大屏（v3.3 路线 C：AI 智能大脑 + 6 KPI + 4 图表 + 中国地图 + 省份联动）
  *
  * 形态：DataScreen 风格（demo1 同款）
- * - 顶部标题栏（中文标题 + 英文副标题 + 在线状态 + 实时时钟 + 全屏按钮）
+ * - 顶部标题栏（中文标题 + 英文副标题 + 在线状态 + 实时时钟）
  * - 三栏分栏：左 26% KPI + 趋势 / 中央 flex:1 地图 / 右 26% 审批跑马灯 + AI 大脑
  * - 省份联动：点击地图省份 → KPI / 趋势 / 状态分布 / Top10 全部按 province 过滤
  * - AI 大脑：6 维雷达 + summary / risks / suggestions 打字机轮播
  *
- * 路由：/cockpit/dashboard（顶级 + 子路由）
+ * 路由：/dashboard（v3.6 扁平，顶级路由，菜单直达）
+ * 全屏：浏览器原生 F11 / 系统快捷键
  * 数据源：
- *   - GET /biz/cockpit/overview[?province=xx]
- *   - GET /biz/cockpit/ai-diagnose
+ *   - GET /biz/dashboard/overview[?province=xx]
+ *   - GET /biz/dashboard/ai-diagnose
  */
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { getCockpitOverview, getCockpitAiDiagnose } from '@/api/biz/cockpit'
+import { getDashboardOverview, getDashboardAiDiagnose } from '@/api/biz/dashboard'
 import BaseChart from '@/components/Biz/BaseChart.vue'
 import CountTo from '@/components/Biz/CountTo.vue'
 import ScreenMap from '@/components/Biz/ScreenMap.vue'
 
-const props = defineProps({
-  fullscreen: { type: Boolean, default: false }
-})
-
-const router = useRouter()
-const route = useRoute()
-const fullscreen = ref(props.fullscreen || route.meta.fullscreen === true)
-
-// /cockpit/screen 路由进入即申请浏览器全屏
-onMounted(() => {
-  if (fullscreen.value && !document.fullscreenElement) {
-    document.documentElement.requestFullscreen?.().catch(() => {})
-  }
-})
-
-function toggleScreen() {
-  if (fullscreen.value) {
-    if (document.fullscreenElement) document.exitFullscreen?.()
-    router.push('/cockpit/dashboard')
-  } else {
-    if (document.documentElement.requestFullscreen) {
-      document.documentElement.requestFullscreen().catch(() => {})
-      fullscreen.value = true
-    }
-  }
-}
+// v3.6：扁平路由后无 Layout / 无全屏分支；useRoute / fullscreen ref / props / toggleScreen 已无引用
+// 注释保留以备后续真需要时还原
 
 // ---- 时钟 ----
 const clock = ref('')
@@ -175,12 +149,7 @@ function tickClock() {
   today.value = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
 
-// Esc 退出全屏回工作台（demo1 同款）
-function onKey(e) {
-  if (e.key === 'Escape' && !document.fullscreenElement && fullscreen.value) {
-    router.push('/cockpit/index')
-  }
-}
+// v3.5：Esc 全屏退出逻辑删除（已无全屏入口）
 
 // ---- 数据 ----
 const chartRef = ref(null)
@@ -301,49 +270,62 @@ const aiMessages = computed(() => {
   return arr
 })
 
-// ---- 数据加载 ----
+// ---- 数据加载：signal + in-flight dedup ----
+let abortCtrl = null
+let loadInFlight = false
+let loadAiInFlight = false
+let overviewTimer = null
+let aiTimer = null
+
 async function load() {
+  if (loadInFlight) return
+  loadInFlight = true
+  abortCtrl?.abort()
+  const ctrl = new AbortController()
+  abortCtrl = ctrl
   try {
-    const res = await getCockpitOverview(province.value ? { province: province.value } : {})
+    const res = await getDashboardOverview(
+      province.value ? { province: province.value } : {},
+      { signal: ctrl.signal }
+    )
     const data = res?.data || res || {}
     overview.value = data
-    generatedAt.value = data.generatedAt || ''
-  } catch (e) {
-    /* 静默 */
-  }
+    generatedAt.value = data.generatedAt || ""
+  } catch (e) { /* 静默吞掉 axios cancel */ } finally { loadInFlight = false }
 }
 
 async function loadAi() {
+  if (loadAiInFlight) return
+  loadAiInFlight = true
   try {
-    const res = await getCockpitAiDiagnose()
+    const res = await getDashboardAiDiagnose()
     ai.value = res?.data || res || {}
     startTyper()
-  } catch (e) {
-    /* 静默 */
-  }
+  } catch (e) { /* 静默 */ } finally { loadAiInFlight = false }
 }
 
 onMounted(() => {
   tickClock()
   clockTimer = setInterval(tickClock, 1000)
-  window.addEventListener('keydown', onKey)
   load()
   loadAi()
-  // 60s 自动刷新 overview，AI 单独 90s 刷新（30s 缓存）
-  setInterval(load, 60000)
-  setInterval(loadAi, 90000)
+  overviewTimer = setInterval(load, 60000)
+  aiTimer = setInterval(loadAi, 90000)
 })
 
 onBeforeUnmount(() => {
   clearInterval(clockTimer)
+  clearInterval(overviewTimer)
+  clearInterval(aiTimer)
   stopTyper()
-  window.removeEventListener('keydown', onKey)
-  if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {})
+  abortCtrl?.abort()
 })
 </script>
 
+
 <style scoped lang="scss">
 /* demo1 同款：径向渐变 + 玻璃感面板 + 蓝色青光 */
+/* v3.6：扁平 /dashboard 路由，不再嵌 Layout，去掉负 margin 与 ds-full 分支 */
 .ds {
   background:
     radial-gradient(1200px 600px at 50% -10%, rgba(28, 155, 230, 0.18), transparent 60%),
@@ -352,9 +334,10 @@ onBeforeUnmount(() => {
   color: #cfe6ff;
   font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
   box-sizing: border-box;
+  margin: 0;
+  padding: 14px 20px;
+  min-height: 100vh;
 }
-.ds-full { margin: 0; padding: 14px 20px; min-height: 100vh; }
-.ds:not(.ds-full) { margin: -20px; padding: 14px 18px 18px; min-height: calc(100vh - 60px); }
 
 /* 头部 */
 .screen-head {
