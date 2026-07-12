@@ -61,7 +61,7 @@ def upgrade() -> None:
         sa.Column('remark', sa.String(500), nullable=True, comment='备注'),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('customer_code', name='uk_customer_code'),
-        **_mysql_table_kwargs(op.get_bind())
+        **_mysql_table_kwargs(op.get_bind()),
         comment='客户档案表',
     )
     op.create_index('idx_customer_type', 'biz_customer', ['customer_type'])
@@ -98,7 +98,7 @@ def upgrade() -> None:
         sa.Column('update_time', sa.DateTime, nullable=True, comment='更新时间'),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('contract_no', name='uk_contract_no'),
-        **_mysql_table_kwargs(op.get_bind())
+        **_mysql_table_kwargs(op.get_bind()),
         comment='合同主表',
     )
     op.create_index('idx_status', 'biz_contract', ['status'])
@@ -124,7 +124,7 @@ def upgrade() -> None:
         sa.Column('approval_time', sa.DateTime, nullable=False, comment='审批时间'),
         sa.Column('create_time', sa.DateTime, nullable=False, comment='记录创建时间'),
         sa.PrimaryKeyConstraint('id'),
-        **_mysql_table_kwargs(op.get_bind())
+        **_mysql_table_kwargs(op.get_bind()),
         comment='审批记录表',
     )
     op.create_index('idx_contract_id', 'biz_approval', ['contract_id'])
@@ -163,7 +163,7 @@ def upgrade() -> None:
         sa.Column('update_time', sa.DateTime, nullable=True, comment='更新时间'),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('channel_code', name='uk_channel_code'),
-        **_mysql_table_kwargs(op.get_bind())
+        **_mysql_table_kwargs(op.get_bind()),
         comment='渠道主表',
     )
     op.create_index('idx_category', 'biz_channel', ['category'])
@@ -195,7 +195,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('invoice_no', name='uk_invoice_no'),
         sa.UniqueConstraint('contract_id', name='uk_contract_id'),
-        **_mysql_table_kwargs(op.get_bind())
+        **_mysql_table_kwargs(op.get_bind()),
         comment='发票主表',
     )
     op.create_index('idx_invoice_status', 'biz_invoice', ['status'])
@@ -228,7 +228,7 @@ def upgrade() -> None:
         sa.Column('update_time', sa.DateTime, nullable=True, comment='更新时间'),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('entry_no', name='uk_entry_no'),
-        **_mysql_table_kwargs(op.get_bind())
+        **_mysql_table_kwargs(op.get_bind()),
         comment='财务流水台账',
     )
     op.create_index('idx_entry_type', 'biz_finance_entry', ['entry_type'])
@@ -254,7 +254,7 @@ def upgrade() -> None:
         sa.Column('import_time', sa.DateTime, nullable=False, comment='导入时间'),
         sa.Column('imported_by', sa.BigInteger, nullable=True, comment='导入人 sys_user.user_id'),
         sa.PrimaryKeyConstraint('id'),
-        **_mysql_table_kwargs(op.get_bind())
+        **_mysql_table_kwargs(op.get_bind()),
         comment='银行对账单导入表',
     )
     op.create_index('idx_batch_no', 'biz_bank_statement', ['batch_no'])
@@ -283,7 +283,7 @@ def upgrade() -> None:
         sa.Column('update_time', sa.DateTime, nullable=True, comment='更新时间'),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('period', 'period_type', 'business_line', name='uk_period_type_line'),
-        **_mysql_table_kwargs(op.get_bind())
+        **_mysql_table_kwargs(op.get_bind()),
         comment='经营数据表',
     )
     op.create_index('idx_op_period_type', 'biz_operation', ['period_type'])
