@@ -318,15 +318,19 @@ class APIDocsUtil:
         :return:
         """
         swagger_urls: list[str] = (
-            [cls._DOCS_URL] if not AppConfig.app_disable_swagger else [cls._DOCS_URL, cls._PROXY_DOCS_URL]
+            [cls._DOCS_URL, cls._PROXY_DOCS_URL]
+            if not AppConfig.app_disable_swagger
+            else [cls._DOCS_URL]
         )
         swagger_redirect_urls: list[str] = (
-            [cls._OAUTH2_REDIRECT_URL]
+            [cls._OAUTH2_REDIRECT_URL, cls._PROXY_OAUTH2_REDIRECT_URL]
             if not AppConfig.app_disable_swagger
-            else [cls._OAUTH2_REDIRECT_URL, cls._PROXY_OAUTH2_REDIRECT_URL]
+            else [cls._OAUTH2_REDIRECT_URL]
         )
         redoc_urls: list[str] = (
-            [cls._REDOC_URL] if not AppConfig.app_disable_redoc else [cls._REDOC_URL, cls._PROXY_REDOC_URL]
+            [cls._REDOC_URL, cls._PROXY_REDOC_URL]
+            if not AppConfig.app_disable_redoc
+            else [cls._REDOC_URL]
         )
 
         for url in swagger_urls:
