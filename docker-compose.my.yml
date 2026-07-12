@@ -24,6 +24,10 @@ services:
     container_name: ruoyi-backend-my
     ports:
       - "19099:9099"
+    environment:
+      # 显式覆盖传输层加解密（公网 HTTP 部署场景：浏览器没有 crypto.subtle）
+      TRANSPORT_CRYPTO_ENABLED: "false"
+      TRANSPORT_CRYPTO_MODE: "off"
     depends_on:
       ruoyi-mysql:
         condition: service_healthy
