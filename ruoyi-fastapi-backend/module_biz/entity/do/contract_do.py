@@ -6,7 +6,6 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import JSON, BigInteger, Column, Date, DateTime, Integer, Numeric, String, Text
-from sqlalchemy.dialects.mysql import DECIMAL
 
 from config.database import Base
 
@@ -23,7 +22,7 @@ class BizContract(Base):
     contract_type = Column(String(20), nullable=False, comment='payment / business')
     party_a = Column(String(200), nullable=False, comment='甲方（客户）')
     party_b = Column(String(200), nullable=False, comment='乙方（本司）')
-    amount = Column(DECIMAL(18, 2), nullable=False, default=Decimal('0.00'), comment='合同金额（元）')
+    amount = Column(Numeric(18, 2), nullable=False, default=Decimal('0.00'), comment='合同金额（元）')
     amount_in_words = Column(String(100), nullable=True, comment='金额大写')
     sign_date = Column(Date, nullable=True, comment='签订日期')
     department = Column(String(100), nullable=True, comment='申请部门')

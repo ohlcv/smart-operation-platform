@@ -10,7 +10,6 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import JSON, BigInteger, Column, Date, DateTime, Integer, Numeric, String, Text
-from sqlalchemy.dialects.mysql import DECIMAL
 
 from config.database import Base
 
@@ -26,9 +25,9 @@ class BizInvoice(Base):
     contract_id = Column(BigInteger, nullable=False, comment='关联合同ID biz_contract.id')
     contract_no = Column(String(50), nullable=True, comment='冗余合同编号（便于展示）')
     invoice_type = Column(String(20), nullable=False, comment='发票类型：specialized=增值税专用 / general=普通 / electronic=电子')
-    amount = Column(DECIMAL(18, 2), nullable=False, default=Decimal('0.00'), comment='开票金额（含税）')
-    tax_rate = Column(DECIMAL(5, 4), nullable=False, default=Decimal('0.0000'), comment='税率（0-1）')
-    tax_amount = Column(DECIMAL(18, 2), nullable=False, default=Decimal('0.00'), comment='税额')
+    amount = Column(Numeric(18, 2), nullable=False, default=Decimal('0.00'), comment='开票金额（含税）')
+    tax_rate = Column(Numeric(5, 4), nullable=False, default=Decimal('0.0000'), comment='税率（0-1）')
+    tax_amount = Column(Numeric(18, 2), nullable=False, default=Decimal('0.00'), comment='税额')
     party_name = Column(String(200), nullable=False, comment='购方名称（抬头）')
     party_tax_no = Column(String(50), nullable=True, comment='购方税号')
     status = Column(String(20), nullable=False, default='pending', comment='状态：pending/issued/void')

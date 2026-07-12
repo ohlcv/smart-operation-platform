@@ -6,7 +6,6 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import JSON, BigInteger, Column, Date, DateTime, Integer, Numeric, String, Text
-from sqlalchemy.dialects.mysql import DECIMAL
 
 from config.database import Base
 
@@ -25,7 +24,7 @@ class BizFinanceEntry(Base):
     contract_id = Column(BigInteger, nullable=True, comment='关联合同ID biz_contract.id')
     contract_no = Column(String(50), nullable=True, comment='冗余合同号')
     party_name = Column(String(200), nullable=True, comment='对手方名称')
-    amount = Column(DECIMAL(18, 2), nullable=False, default=Decimal('0.00'), comment='金额')
+    amount = Column(Numeric(18, 2), nullable=False, default=Decimal('0.00'), comment='金额')
     account = Column(String(50), nullable=True, comment='银行账号')
     account_name = Column(String(100), nullable=True, comment='账户名')
     bank_name = Column(String(100), nullable=True, comment='开户行')
@@ -54,7 +53,7 @@ class BizBankStatement(Base):
     batch_no = Column(String(50), nullable=False, comment='导入批次号')
     transaction_date = Column(Date, nullable=False, comment='交易日期')
     account = Column(String(50), nullable=False, comment='银行账号')
-    amount = Column(DECIMAL(18, 2), nullable=False, comment='金额')
+    amount = Column(Numeric(18, 2), nullable=False, comment='金额')
     direction = Column(String(10), nullable=False, default='in', comment='in=收入/out=支出')
     counterparty = Column(String(100), nullable=True, comment='交易对手')
     counterparty_account = Column(String(50), nullable=True, comment='对手账号')

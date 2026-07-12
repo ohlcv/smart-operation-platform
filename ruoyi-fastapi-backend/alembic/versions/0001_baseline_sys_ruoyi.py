@@ -13,7 +13,23 @@ from __future__ import annotations
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects import mysql
+
+
+def _mysql_table_kwargs(bind) -> dict:
+    """返回表选项 kwargs，MySQL 用 ENGINE/CHARSET/COLLATE，PG 走空 dict。
+
+    用法：
+        op.create_table(..., **_mysql_table_kwargs(bind))
+    这样 alembic 在 PG 上跑时不会携带 MySQL 专属表选项（Django-style postgres default）。
+    """
+    if bind is not None and getattr(bind.dialect, 'name', '') == 'mysql':
+        return {
+            'mysql_engine': 'InnoDB',
+            'mysql_default_charset': 'utf8mb4',
+            'mysql_collate': 'utf8mb4_general_ci',
+        }
+    return {}
+
 
 # revision identifiers, used by Alembic.
 revision = '0001_baseline_sys_ruoyi'
@@ -24,6 +40,7 @@ depends_on = None
 
 def upgrade() -> None:
     """建 RuoYi 原生 sys_* 全套表（不含数据，数据见 0003 seed）"""
+    bind = op.get_bind()
     # ============== sys_dept ==============
     op.create_table(
         'sys_dept',
@@ -42,7 +59,7 @@ def upgrade() -> None:
         sa.Column('update_by', sa.String(64), server_default='', nullable=True, comment='更新者'),
         sa.Column('update_time', sa.DateTime, nullable=True, comment='更新时间'),
         sa.PrimaryKeyConstraint('dept_id'),
-        mysql_engine='InnoDB', mysql_default_charset='utf8mb4', mysql_collate='utf8mb4_general_ci',
+        **_mysql_table_kwargs(op.get_bind())
         comment='部门表',
     )
 
@@ -71,7 +88,7 @@ def upgrade() -> None:
         sa.Column('remark', sa.String(500), nullable=True, comment='备注'),
         sa.Column('signature', sa.String(500), nullable=True, comment='电子签名 base64 data URI（v2.9）'),
         sa.PrimaryKeyConstraint('user_id'),
-        mysql_engine='InnoDB', mysql_default_charset='utf8mb4', mysql_collate='utf8mb4_general_ci',
+        **_mysql_table_kwargs(op.get_bind())
         comment='用户信息表',
     )
 
@@ -81,7 +98,7 @@ def upgrade() -> None:
         sa.Column('user_id', sa.BigInteger, nullable=False, comment='用户ID'),
         sa.Column('role_id', sa.BigInteger, nullable=False, comment='角色ID'),
         sa.PrimaryKeyConstraint('user_id', 'role_id'),
-        mysql_engine='InnoDB', mysql_default_charset='utf8mb4', mysql_collate='utf8mb4_general_ci',
+        **_mysql_table_kwargs(op.get_bind())
         comment='用户和角色关联表',
     )
     op.create_table(
@@ -89,7 +106,7 @@ def upgrade() -> None:
         sa.Column('user_id', sa.BigInteger, nullable=False, comment='用户ID'),
         sa.Column('post_id', sa.BigInteger, nullable=False, comment='岗位ID'),
         sa.PrimaryKeyConstraint('user_id', 'post_id'),
-        mysql_engine='InnoDB', mysql_default_charset='utf8mb4', mysql_collate='utf8mb4_general_ci',
+        **_mysql_table_kwargs(op.get_bind())
         comment='用户与岗位关联表',
     )
 
@@ -111,7 +128,7 @@ def upgrade() -> None:
         sa.Column('update_time', sa.DateTime, nullable=True, comment='更新时间'),
         sa.Column('remark', sa.String(500), nullable=True, comment='备注'),
         sa.PrimaryKeyConstraint('role_id'),
-        mysql_engine='InnoDB', mysql_default_charset='utf8mb4', mysql_collate='utf8mb4_general_ci',
+        **_mysql_table_kwargs(op.get_bind())
         comment='角色信息表',
     )
     op.create_table(
@@ -119,7 +136,7 @@ def upgrade() -> None:
         sa.Column('role_id', sa.BigInteger, nullable=False, comment='角色ID'),
         sa.Column('dept_id', sa.BigInteger, nullable=False, comment='部门ID'),
         sa.PrimaryKeyConstraint('role_id', 'dept_id'),
-        mysql_engine='InnoDB', mysql_default_charset='utf8mb4', mysql_collate='utf8mb4_general_ci',
+        **_mysql_table_kwargs(op.get_bind())
         comment='角色和部门关联表',
     )
     op.create_table(
@@ -127,7 +144,7 @@ def upgrade() -> None:
         sa.Column('role_id', sa.BigInteger, nullable=False, comment='角色ID'),
         sa.Column('menu_id', sa.BigInteger, nullable=False, comment='菜单ID'),
         sa.PrimaryKeyConstraint('role_id', 'menu_id'),
-        mysql_engine='InnoDB', mysql_default_charset='utf8mb4', mysql_collate='utf8mb4_general_ci',
+        **_mysql_table_kwargs(op.get_bind())
         comment='角色和菜单关联表',
     )
 
@@ -153,7 +170,7 @@ def upgrade() -> None:
         sa.Column('update_time', sa.DateTime, nullable=True, comment='更新时间'),
         sa.Column('remark', sa.String(500), server_default='', nullable=True, comment='备注'),
         sa.PrimaryKeyConstraint('menu_id'),
-        mysql_engine='InnoDB', mysql_default_charset='utf8mb4', mysql_collate='utf8mb4_general_ci',
+        **_mysql_table_kwargs(op.get_bind())
         comment='菜单权限表',
     )
 
@@ -171,7 +188,7 @@ def upgrade() -> None:
         sa.Column('update_time', sa.DateTime, nullable=True, comment='更新时间'),
         sa.Column('remark', sa.String(500), nullable=True, comment='备注'),
         sa.PrimaryKeyConstraint('post_id'),
-        mysql_engine='InnoDB', mysql_default_charset='utf8mb4', mysql_collate='utf8mb4_general_ci',
+        **_mysql_table_kwargs(op.get_bind())
         comment='岗位信息表',
     )
 
@@ -189,7 +206,7 @@ def upgrade() -> None:
         sa.Column('remark', sa.String(500), nullable=True, comment='备注'),
         sa.PrimaryKeyConstraint('dict_id'),
         sa.UniqueConstraint('dict_type'),
-        mysql_engine='InnoDB', mysql_default_charset='utf8mb4', mysql_collate='utf8mb4_general_ci',
+        **_mysql_table_kwargs(op.get_bind())
         comment='字典类型表',
     )
     op.create_table(
@@ -209,7 +226,7 @@ def upgrade() -> None:
         sa.Column('update_time', sa.DateTime, nullable=True, comment='更新时间'),
         sa.Column('remark', sa.String(500), nullable=True, comment='备注'),
         sa.PrimaryKeyConstraint('dict_code'),
-        mysql_engine='InnoDB', mysql_default_charset='utf8mb4', mysql_collate='utf8mb4_general_ci',
+        **_mysql_table_kwargs(op.get_bind())
         comment='字典数据表',
     )
 
@@ -227,7 +244,7 @@ def upgrade() -> None:
         sa.Column('update_time', sa.DateTime, nullable=True, comment='更新时间'),
         sa.Column('remark', sa.String(500), nullable=True, comment='备注'),
         sa.PrimaryKeyConstraint('config_id'),
-        mysql_engine='InnoDB', mysql_default_charset='utf8mb4', mysql_collate='utf8mb4_general_ci',
+        **_mysql_table_kwargs(op.get_bind())
         comment='参数配置表',
     )
 
@@ -245,7 +262,7 @@ def upgrade() -> None:
         sa.Column('update_time', sa.DateTime, nullable=True, comment='更新时间'),
         sa.Column('remark', sa.String(500), nullable=True, comment='备注'),
         sa.PrimaryKeyConstraint('notice_id'),
-        mysql_engine='InnoDB', mysql_default_charset='utf8mb4', mysql_collate='utf8mb4_general_ci',
+        **_mysql_table_kwargs(op.get_bind())
         comment='通知公告表',
     )
 
@@ -266,7 +283,7 @@ def upgrade() -> None:
         sa.Column('update_time', sa.DateTime, nullable=True, comment='更新时间'),
         sa.Column('remark', sa.String(500), nullable=True, comment='备注'),
         sa.PrimaryKeyConstraint('job_id'),
-        mysql_engine='InnoDB', mysql_default_charset='utf8mb4', mysql_collate='utf8mb4_general_ci',
+        **_mysql_table_kwargs(op.get_bind())
         comment='定时任务调度表',
     )
     op.create_table(
@@ -280,7 +297,7 @@ def upgrade() -> None:
         sa.Column('exception_info', sa.String(2000), server_default='', nullable=True, comment='异常信息'),
         sa.Column('create_time', sa.DateTime, nullable=True, comment='创建时间'),
         sa.PrimaryKeyConstraint('job_log_id'),
-        mysql_engine='InnoDB', mysql_default_charset='utf8mb4', mysql_collate='utf8mb4_general_ci',
+        **_mysql_table_kwargs(op.get_bind())
         comment='定时任务调度日志表',
     )
 
@@ -297,7 +314,7 @@ def upgrade() -> None:
         sa.Column('msg', sa.String(255), server_default='', nullable=True, comment='提示消息'),
         sa.Column('login_time', sa.DateTime, nullable=True, comment='访问时间'),
         sa.PrimaryKeyConstraint('info_id'),
-        mysql_engine='InnoDB', mysql_default_charset='utf8mb4', mysql_collate='utf8mb4_general_ci',
+        **_mysql_table_kwargs(op.get_bind())
         comment='系统访问记录',
     )
     op.create_table(
@@ -319,7 +336,7 @@ def upgrade() -> None:
         sa.Column('oper_time', sa.DateTime, nullable=True, comment='操作时间'),
         sa.Column('cost_time', sa.BigInteger, server_default='0', nullable=True, comment='消耗时间'),
         sa.PrimaryKeyConstraint('oper_id'),
-        mysql_engine='InnoDB', mysql_default_charset='utf8mb4', mysql_collate='utf8mb4_general_ci',
+        **_mysql_table_kwargs(op.get_bind())
         comment='操作日志记录',
     )
 

@@ -12,8 +12,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import JSON, BigInteger, Column, DateTime, Integer, Numeric, String, Text
-from sqlalchemy.dialects.mysql import DECIMAL, DOUBLE
+from sqlalchemy import JSON, BigInteger, Column, DateTime, Float, Integer, Numeric, String, Text
 
 from config.database import Base
 
@@ -34,12 +33,12 @@ class BizChannel(Base):
     platform_url = Column(String(255), nullable=True, comment='平台地址')
     account = Column(String(128), nullable=True, comment='登录账号（演示用）')
     password = Column(String(128), nullable=True, comment='登录密码（演示用，明文不加密）')
-    commission_rate = Column(DECIMAL(5, 4), nullable=True, comment='佣金比例（0-1）')
+    commission_rate = Column(Numeric(5, 4), nullable=True, comment='佣金比例（0-1）')
     # v3.3 路线 C：地图定位字段
     province = Column(String(40), nullable=True, comment='省份（v3.3 路线 C 地图联动）')
     city = Column(String(40), nullable=True, comment='城市（v3.3 路线 C 地图联动）')
-    lng = Column(DOUBLE, nullable=True, comment='经度（v3.3 路线 C）')
-    lat = Column(DOUBLE, nullable=True, comment='纬度（v3.3 路线 C）')
+    lng = Column(Float(53), nullable=True, comment='经度（v3.3 路线 C）')
+    lat = Column(Float(53), nullable=True, comment='纬度（v3.3 路线 C）')
     status = Column(Integer, nullable=False, default=1, comment='状态 0=停用 1=启用')
     sort_order = Column(Integer, nullable=False, default=0, comment='排序值，越大越靠前')
     description = Column(Text, nullable=True, comment='渠道说明')

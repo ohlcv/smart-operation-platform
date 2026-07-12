@@ -4,8 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, BigInteger, Column, DateTime, Integer, String
-from sqlalchemy.dialects.mysql import TINYINT
+from sqlalchemy import JSON, BigInteger, Column, DateTime, Integer, SmallInteger, String
 
 from config.database import Base
 
@@ -34,7 +33,7 @@ class BizCustomer(Base):
     qualification_files = Column(JSON, nullable=True, comment='资质文件列表 [{name,url}]')
     level = Column(String(10), nullable=True, comment='客户等级 A/B/C')
     tags = Column(JSON, nullable=True, comment='标签 ["景区","文旅"]')
-    status = Column(TINYINT(4), nullable=False, default=1, comment='状态 0=停用 1=启用')
+    status = Column(SmallInteger, nullable=False, default=1, comment='状态 0=停用 1=启用')
     created_by = Column(BigInteger, nullable=True, comment='创建人 sys_user.user_id')
     create_time = Column(DateTime, nullable=False, default=datetime.now, comment='创建时间')
     update_by = Column(String(64), nullable=True, comment='更新者')

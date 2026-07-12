@@ -6,7 +6,6 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import JSON, BigInteger, Column, DateTime, Integer, Numeric, String, Text
-from sqlalchemy.dialects.mysql import DECIMAL
 
 from config.database import Base
 
@@ -21,12 +20,12 @@ class BizOperation(Base):
     period = Column(String(20), nullable=False, comment='周期 key，如 2026-07 / 2026-Q3 / 2026')
     period_type = Column(String(20), nullable=False, comment='周期类型 month/quarter/year')
     business_line = Column(String(20), nullable=True, comment='业务线 scenic/digital/logistics')
-    revenue = Column(DECIMAL(18, 2), nullable=False, default=Decimal('0.00'), comment='营收')
-    cost = Column(DECIMAL(18, 2), nullable=False, default=Decimal('0.00'), comment='成本')
-    gross_profit = Column(DECIMAL(18, 2), nullable=False, default=Decimal('0.00'), comment='毛利（实时计算冗余）')
+    revenue = Column(Numeric(18, 2), nullable=False, default=Decimal('0.00'), comment='营收')
+    cost = Column(Numeric(18, 2), nullable=False, default=Decimal('0.00'), comment='成本')
+    gross_profit = Column(Numeric(18, 2), nullable=False, default=Decimal('0.00'), comment='毛利（实时计算冗余）')
     customer_count = Column(Integer, nullable=False, default=0, comment='客户数')
     contract_count = Column(Integer, nullable=False, default=0, comment='合同数')
-    avg_order_value = Column(DECIMAL(18, 2), nullable=False, default=Decimal('0.00'), comment='客单价')
+    avg_order_value = Column(Numeric(18, 2), nullable=False, default=Decimal('0.00'), comment='客单价')
     remark = Column(Text, nullable=True, comment='备注')
     created_by = Column(BigInteger, nullable=True, comment='创建人 sys_user.user_id')
     created_by_name = Column(String(64), nullable=True, comment='创建人姓名（冗余）')
