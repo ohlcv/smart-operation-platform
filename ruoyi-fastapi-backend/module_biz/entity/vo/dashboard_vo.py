@@ -35,6 +35,10 @@ class DashboardKpiModel(DashboardBaseModel):
     channel_total: int = Field(default=0, description='渠道总数（D09 读取 channel 表，路线 A 表若不存在则 0）')
     invoice_pending: int = Field(default=0, description='待开发票数（D11 读取 invoice 表）')
     approval_pending: int = Field(default=0, description='待我审批数')
+    # v3.12：SRS B1-01 P0 三个核心财务指标
+    operation_revenue: Decimal = Field(default=Decimal('0.00'), description='总营收（biz_operation sum；省份模式 → contract.amount sum）')
+    operation_gross_profit: Decimal = Field(default=Decimal('0.00'), description='总毛利（biz_operation sum；省份模式 v3.12 暂返回 0）')
+    operation_contract_count: int = Field(default=0, description='订单数/合同数（biz_operation.contract_count sum；省份模式 → contract.count）')
 
 
 class Trend7dItemModel(DashboardBaseModel):
@@ -132,8 +136,29 @@ class AiRiskItemModel(DashboardBaseModel):
     """AI 智能大脑 - 风险诊断条目"""
 
     level: str = Field(..., description='风险等级 high/medium/low')
+    level_label: str = Field(
+        default='',
+        description='风险等级中文标签 高/中/低风险（前端展示用）',
+    )
     title: str = Field(..., description='风险标题')
     detail: str = Field(..., description='风险详细说明')
+
+    @classmethod
+    def make(cls, level: str, title: str, detail: str) -> 'AiRiskItemModel':
+        """构造时自动填充 level_label。"""
+        return cls(
+            level=level,
+            level_label=_AI_RISK_LEVEL_LABEL_MAP.get(level, level),
+            title=title,
+            detail=detail,
+        )
+
+
+_AI_RISK_LEVEL_LABEL_MAP: dict[str, str] = {
+    'high': '高风险',
+    'medium': '中风险',
+    'low': '低风险',
+}
 
 
 class AiSuggestionItemModel(DashboardBaseModel):

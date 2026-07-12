@@ -33,7 +33,7 @@
 | D28 | 路线 C 仪表盘升级范围 | Pydantic 模型统一采用别名显式声明（`Field(alias='xx', serialization_alias='xx')`）优先于 `alias_generator=to_camel`，避免纯数字+字母连写的边界 case 把字段转成「首字母大写」；具体场景：`trend_7d` → 显式 alias `trend7d` | ✅ 已确认 |
 | D29 | 仪表盘双形态（v3.9 双路由共用 + 浏览器真全屏，v3.10 CSS 修正 Chrome 横向滚动 / sidebar 遮挡） | v3.8 嵌入 Layout + URL query `?fullscreen=1` 切换 CSS 形态，但实测发现"应用层切 CSS ≠ 浏览器真全屏"，用户期望"全屏模式 = 真·浏览器全屏 + 去掉 Layout"。**v3.9 修订为双路由共用同一 dashboard.vue**：(1) router 保留 `/dashboard` (Layout 嵌) + 新增 `/dashboard/screen` (顶级，不嵌 Layout，`hidden:true` 菜单不显示)；(2) dashboard.vue 加 `isScreenRoute = computed(() => route.name === 'BizDashboardScreen')` 判形态；(3) 模板 `:class="{ 'is-fullscreen': isScreenRoute }"`，按钮文字 `{{ isScreenRoute ? '退出全屏' : '全屏模式' }}`；(4) `toggleFullscreen()` 默认态 → `router.push('/dashboard/screen')` + `document.documentElement.requestFullscreen()`（50ms 延迟等路由切换），大屏态 → `exitFullscreen()` + `router.push('/dashboard')`；(5) 听 `fullscreenchange` / `webkitfullscreenchange` 事件，浏览器 Esc 退出全屏时自动 `router.push('/dashboard')` 回默认；(6) onMounted 判断 `isScreenRoute && !getFullscreenElement()` 自动补一次 requestFullscreen（处理直链 / 刷新 / 浏览器后退场景）；(7) CSS 双形态：`.ds` 默认嵌 Layout（负 margin 拉满左右，无 100vh）+ `.ds.is-fullscreen` 真大屏（min-height: 100vh + margin: 0）。**v3.10 CSS 修正**：v3.9 `.ds` 用 `margin: 0 calc(50% - 50vw)` 强行溢出到 100vw，**Chrome 出现 body 横向滚动条 + 暗色背景左边被 sidebar 盖住**（Safari 行为不一致掩盖问题）；改 `.ds` 为 `width: 100%; margin: 0`，暗色背景只到 Layout 主区边界，跟其他业务页一致，不被 sidebar 遮挡，无横向溢出。**回退 v3.8**：去掉 URL query `?fullscreen=1` 持久化；去掉 fullscreen ref/computed（改用 isScreenRoute） | ✅ 已确认 |
 | D31 | 仪表盘改名为仪表盘（v3.6） | 「仪表盘」产品名沿用自 v1.0 demo；v3.6 收敛为顶级路由 `/dashboard` 后页面已无「仪表盘」实体氛围，且与 dashboard.vue 文件名一致性更强，故用户视角统一改名「仪表盘」：(1) `sys_menu.menu_id=13.menu_name='仪表盘'→'仪表盘'`；(2) router meta title + dashboard.vue 顶部中文标题「数据仪表盘」→「数据仪表盘」；(3) 后端 FastAPI tag 改「业务管理-仪表盘」+ Pydantic/DAO/Service docstring 头部加「原仪表盘」回溯注释；(4) API 设计文档第十三章标题「仪表盘模块」→「仪表盘模块」；(5) **未改**：URL 路径 `/biz/dashboard/overview` 仍保留（前端 api/biz/dashboard.js 沿用），`dashboard_*.py` Python 文件名（重命名影响类名 import 全网扫描），历史 ADR 标题 D28/D29/路线 B-C 开发计划保留原标题（历史快照不改） | ✅ 已确认 |
-| D30 | DAO filter 参数显式签名 | service 层用 `asyncio.gather(*DAO_calls)` 并发调用时，DAO 签名必须显式接收 filter 参数（如 `province: str = ''`），而非用 `**kwargs` 兜底；好处：① 静态层 inspect.signature 一眼看出哪些 DAO 支持哪些维度过滤；② 漏接参数时直接 TypeError 而非静默忽略；③ `if province:` 分支条件清晰可读；本规则在 `dashboard_dao.trend_7d` 漏接 province 事故中确立（v3.5） | ✅ 已确认 |
+| D30 | DAO filter 参数显式签名 | service 层用 `asyncio.gather(*DAO_calls)` 并发调用时，DAO 签名必须显式接收 filter 参数（如 `province: str = ''`），而非用 `**kwargs` 兜底；好处：① 静态层 inspect.signature 一眼看出哪些 DAO 支持哪些维度过滤；② 漏接参数时直接 TypeError 而非静默忽略；③ `if province:` 分支条件清晰可读；本规则在 `dashboard_dao.trend_7d` 漏接 province 事故中确立（v3.5）。**v3.11 补记**：`trend_revenue` 也漏接过 province 一次（v3.10 工作树），改成 `trend_revenue(db, province: str = '', year=None)` + service 透传 province；省份模式改走 biz_contract.amount 按 sign_date 月聚合（不让 biz_operation 加列，遵循 D05 决定） | ✅ 已确认 |
 
 ---
 
@@ -858,6 +858,8 @@ for m in ['kpi_contract', 'trend_7d', 'status_distribution', 'top_customers']:
     sig = inspect.signature(getattr(DashboardDAO, m))
     assert 'province' in sig.parameters, f'{m} 漏接 province，违反 D30'
 ```
+
+**v3.11 补记**：`trend_revenue` 漏接 `province` 暴露 —— v3.10 工作树 DAO `trend_revenue(db, year)` 只收 db+year，service.overview 透传 province 是无意义的（DAO 签名不接，结果是**省份联动时营收趋势仍展示全国数据**，视觉割裂）。修复：`trend_revenue` 改为 `trend_revenue(db, province: str = '', year: int | None = None)`，province 非空改用 biz_contract.amount 按 sign_date 月聚合；province 仍走 biz_operation.revenue 手工录入。`biz_operation` 不加 province 列（D05 决定：经营数据为手工录入不允许加列）。
 
 **影响范围**：
 

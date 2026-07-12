@@ -115,6 +115,76 @@ class DashboardDAO:
             return 0
 
     @staticmethod
+    async def kpi_operation(
+        db: AsyncSession,
+        province: str = '',
+    ) -> dict[str, Decimal | int]:
+        """SRS B1-01 核心财务指标：营收 / 毛利 / 订单数（合同数）。
+
+        v3.12：SRS B1-01 P0 三个核心财务卡补齐。
+
+        - province 为空（全国模式）：数据源 ``biz_operation`` 表（手工录入）
+          当年所有 month+quarter+year 汇总（quarter/year 暂不展示给前端，仅按 sum）。
+          本期口径：所有 period_type='month' AND period LIKE '{年}-%' 的 revenue / gross_profit / contract_count。
+        - province 非空（省份模式）：biz_operation 没 province 列（D05 决定不允许加列），
+          退化为 contract 表：revenue = SUM(biz_contract.amount WHERE province=x)、
+          gross_profit = revenue * 行业毛利率（**待 v3.13 接入 cost 列后重写**），
+          contract_count = COUNT(biz_contract WHERE province=x)。
+          **当前 v3.12 简化处理**：gross_profit 在省份模式下返回 0（即不显示毛利，保留营收/合同数两个 KPI）。
+
+        返回字段键：operationRevenue / operationGrossProfit / operationContractCount
+        """
+        from module_biz.entity.do.operation_do import BizOperation
+
+        if province:
+            # v3.12 省份模式：contract 表聚合（避开 biz_operation 没 province 的问题）
+            try:
+                from module_biz.entity.do.contract_do import BizContract
+
+                stmt = (
+                    select(
+                        func.coalesce(func.sum(BizContract.amount), 0),
+                        func.count(BizContract.id),
+                    ).where(BizContract.province == province)
+                )
+                row = (await db.execute(stmt)).one()
+                amount_total = Decimal(str(row[0] or 0))
+                contract_count = int(row[1] or 0)
+            except SQLAlchemyError:
+                amount_total = Decimal('0.00')
+                contract_count = 0
+            return {
+                'operationRevenue': amount_total,
+                'operationGrossProfit': Decimal('0.00'),  # v3.13 接 cost 列后再算
+                'operationContractCount': contract_count,
+            }
+
+        # 全国模式：biz_operation 当年 month 求和
+        try:
+            period_prefix = f'{date.today().year}-'
+            stmt = (
+                select(
+                    func.coalesce(func.sum(BizOperation.revenue), 0),
+                    func.coalesce(func.sum(BizOperation.gross_profit), 0),
+                    func.coalesce(func.sum(BizOperation.contract_count), 0),
+                )
+                .where(BizOperation.period_type == 'month')
+                .where(BizOperation.period.like(f'{period_prefix}%'))
+            )
+            row = (await db.execute(stmt)).one()
+            return {
+                'operationRevenue': Decimal(str(row[0] or 0)),
+                'operationGrossProfit': Decimal(str(row[1] or 0)),
+                'operationContractCount': int(row[2] or 0),
+            }
+        except SQLAlchemyError:
+            return {
+                'operationRevenue': Decimal('0.00'),
+                'operationGrossProfit': Decimal('0.00'),
+                'operationContractCount': 0,
+            }
+
+    @staticmethod
     async def kpi_approval_pending(db: AsyncSession, current_role_keys: list[str]) -> int:
         """待我审批的合同数：status=pending AND current_role ∈ current_role_keys"""
         if not current_role_keys:
@@ -184,11 +254,21 @@ class DashboardDAO:
     # ---------------- 营收月度趋势 ----------------
 
     @staticmethod
-    async def trend_revenue(db: AsyncSession, year: int | None = None) -> list[RevenueTrendItemModel]:
+    async def trend_revenue(
+        db: AsyncSession,
+        province: str = '',
+        year: int | None = None,
+    ) -> list[RevenueTrendItemModel]:
         """本年到当前（YTD）按月聚合营收。
 
-        数据源 biz_operation 表（period_type='month' AND period LIKE 'YYYY-%'）。
-        全业务线求和，未来月份（> 当前月）补 0 占位，X 轴 YTD 连续。
+        v3.11 省份联动：
+        - province 为空（全国模式）：数据源 ``biz_operation`` 表（手工录入，全业务线求和）
+          period_type='month' AND period LIKE 'YYYY-%'。
+        - province 非空（省份模式）：数据源 ``biz_contract`` 表（``sign_date`` 月份聚合签约金额），
+          利用 v3.3 增列 ``biz_contract.province``。这种"业务事实 + 维度过滤"的路径
+          避免在 biz_operation 增 province 列（D05 经营数据为手工录入不允许加列）。
+
+        X 轴 YTD 连续（1-12 月），未来月份（> 当前月）补 0 占位。
         """
         from module_biz.entity.do.operation_do import BizOperation
 
@@ -196,29 +276,61 @@ class DashboardDAO:
         target_year = year if year else today.year
         current_month = today.year * 12 + today.month if target_year == today.year else 12
 
-        # 该年所有月份的实际营收总和
-        period_prefix = f'{target_year}-'
-        stmt = (
-            select(BizOperation.period, func.coalesce(func.sum(BizOperation.revenue), 0))
-            .where(BizOperation.period_type == 'month')
-            .where(BizOperation.period.like(f'{period_prefix}%'))
-            .group_by(BizOperation.period)
-        )
-        rows = (await db.execute(stmt)).all()
-        revenue_map: dict[str, Decimal] = {}
-        for period_key, rev in rows:
-            if period_key:
-                revenue_map[str(period_key)] = Decimal(str(rev or 0))
+        if province:
+            # v3.11 省份模式：biz_contract.amount 按 sign_date 月份聚合
+            try:
+                from module_biz.entity.do.contract_do import BizContract
+
+                stmt = (
+                    select(
+                        func.extract('year', BizContract.sign_date).label('y'),
+                        func.extract('month', BizContract.sign_date).label('m'),
+                        func.coalesce(func.sum(BizContract.amount), 0),
+                    )
+                    .where(BizContract.province == province)
+                    .where(BizContract.sign_date.is_not(None))
+                    .where(func.extract('year', BizContract.sign_date) == target_year)
+                    .group_by('y', 'm')
+                )
+                rows = (await db.execute(stmt)).all()
+            except Exception:
+                rows = []
+            contract_map: dict[int, Decimal] = {}
+            for _y, m, rev in rows:
+                if m is not None:
+                    contract_map[int(m)] = Decimal(str(rev or 0))
+        else:
+            # 全国模式：biz_operation.revenue
+            period_prefix = f'{target_year}-'
+            stmt = (
+                select(BizOperation.period, func.coalesce(func.sum(BizOperation.revenue), 0))
+                .where(BizOperation.period_type == 'month')
+                .where(BizOperation.period.like(f'{period_prefix}%'))
+                .group_by(BizOperation.period)
+            )
+            try:
+                rows = (await db.execute(stmt)).all()
+            except Exception:
+                rows = []
+            contract_map = {}  # 不复用，省份模式下使用
+            revenue_map: dict[str, Decimal] = {}
+            for period_key, rev in rows:
+                if period_key:
+                    revenue_map[str(period_key)] = Decimal(str(rev or 0))
 
         # YTD:1 月到当前月，未来月份补 0
         items: list[RevenueTrendItemModel] = []
         for m in range(1, 13):
             period_key = f'{target_year}-{m:02d}'
             is_future = (target_year * 12 + m) > current_month
+            if province:
+                amount = contract_map.get(m, Decimal('0.00'))
+            else:
+                amount = revenue_map.get(period_key, Decimal('0.00'))
             items.append(
                 RevenueTrendItemModel(
                     month=date(target_year, m, 1),
-                    revenue=Decimal('0.00') if is_future else revenue_map.get(period_key, Decimal('0.00')),
+                    revenue=Decimal('0.00') if is_future else amount,
                 )
             )
         return items
@@ -493,7 +605,7 @@ class DashboardDAO:
         risks: list[AiRiskItemModel] = []
         if pending > 10:
             risks.append(
-                AiRiskItemModel(
+                AiRiskItemModel.make(
                     level='high',
                     title='审批积压告警',
                     detail=f'当前待审合同 {pending} 单，超过 10 单阈值，建议审批人优先处理。',
@@ -501,7 +613,7 @@ class DashboardDAO:
             )
         elif pending > 5:
             risks.append(
-                AiRiskItemModel(
+                AiRiskItemModel.make(
                     level='medium',
                     title='审批积压提醒',
                     detail=f'待审合同 {pending} 单，建议关注审批 SLA。',
@@ -509,7 +621,7 @@ class DashboardDAO:
             )
         if rejected > 5:
             risks.append(
-                AiRiskItemModel(
+                AiRiskItemModel.make(
                     level='medium',
                     title='驳回率偏高',
                     detail=f'累计驳回 {rejected} 单，建议复核合同模板/客户资质审核标准。',
@@ -517,7 +629,7 @@ class DashboardDAO:
             )
         if my_todo > 0:
             risks.append(
-                AiRiskItemModel(
+                AiRiskItemModel.make(
                     level='low',
                     title='个人待办',
                     detail=f'您当前有 {my_todo} 单待审批，建议及时处理以免阻塞流程。',
@@ -526,6 +638,8 @@ class DashboardDAO:
 
         # 建议条目
         suggestions: list[AiSuggestionItemModel] = []
+        # 渠道覆盖率：dome 默认 75，低于 60 才给拓展建议
+        coverage = 75
         if coverage < 60:
             suggestions.append(
                 AiSuggestionItemModel(

@@ -19,7 +19,7 @@
         {{ today }}
         <span class="sep">|</span>
         <el-link
-          :underline="false"
+          :underline="'never'"
           class="fullscreen-toggle"
           @click="toggleFullscreen"
         >
@@ -101,15 +101,20 @@
             <em>{{ ai.summary ? '已诊断' : '诊断中…' }}</em>
           </div>
 
-          <!-- 雷达图 + summary（dome 同款 d2de1c2 青色风格） -->
+          <!-- 雷达图 + summary（dome 同款 d2de1c2 青色风格）-->
+          <!-- v3.11 改为：有数据用真数据；空数据也画一张占位雷达，避免一直「诊断中」 -->
           <BaseChart
-            v-if="ai.radarScores && ai.radarScores.length"
+            v-if="radarIndicators && radarIndicators.length"
             type="radar"
             :categories="radarIndicators"
-            :data="ai.radarScores"
+            :data="ai.radarScores && ai.radarScores.length ? ai.radarScores : [60, 60, 60, 60, 60, 60]"
             height="220px"
           />
-          <div v-else class="ai-empty">AI 诊断中…</div>
+          <div v-else class="ai-empty">雷达初始化失败</div>
+          <div v-if="!(ai.radarScores && ai.radarScores.length)" class="ai-debug">
+            <em>{{ debugAiStatus }}</em>
+            <small v-if="ai && ai.code">code={{ ai.code }} msg={{ ai.msg }}</small>
+          </div>
 
           <!-- AI 总览一句话（替代原打字机） -->
           <div v-if="ai.summary" class="ai-summary">
@@ -121,19 +126,19 @@
           <div v-if="ai.risks || ai.suggestions" class="ai-cols">
             <div class="ai-col">
               <div class="col-title">⚠ 业务风险预警</div>
-            <div
-              v-for="(r, i) in (ai.risks || [])"
-              :key="'r' + i"
-              class="risk-item"
-              :class="'lv-' + r.level"
-            >
-              <div class="risk-head">
-                <span class="risk-tag" :class="'lv-' + r.level">{{ aiLevelLabel(r.level) }}</span>
-                <span class="risk-title">{{ r.title }}</span>
-              </div>
+              <div
+                v-for="(r, i) in (ai.risks || [])"
+                :key="'r' + i"
+                class="risk-item"
+                :class="'lv-' + r.level"
+              >
+                <div class="risk-head">
+                  <span class="risk-tag" :class="'lv-' + r.level">{{ r.levelLabel || ('lv-' + r.level) }}</span>
+                  <span class="risk-title">{{ r.title }}</span>
+                </div>
                 <div class="risk-detail">{{ r.detail }}</div>
               </div>
-              <div v-if="!(ai.risks && ai.risks.length)" class="ai-empty-mini">✓ 当前无高风险</div>
+              <div v-if="!(ai.risks && ai.risks.length)" class="ai-empty-mini">✓ 当前无风险</div>
             </div>
             <div class="ai-col">
               <div class="col-title">💡 运营/资金建议</div>
@@ -145,6 +150,7 @@
                 <div class="sug-title">{{ i + 1 }}. {{ s.title }}</div>
                 <div class="sug-detail">{{ s.detail }}</div>
               </div>
+              <div v-if="!(ai.suggestions && ai.suggestions.length)" class="ai-empty-mini">暂无建议</div>
             </div>
           </div>
         </div>
@@ -155,7 +161,7 @@
 
 <script setup>
 /**
- * 仪表盘（v3.10 双路由共用 + 修正 Chrome 横向滚动 / sidebar 遮挡）
+ * 仪表盘（v3.11 双路由共用 + 营收趋势省份联动修正）
  *
  * 两种形态：
  * - 默认：路由 `/dashboard` → `/dashboard/index`，嵌 Layout（左侧菜单 + 顶部 navbar + Tags View + 中间区）
@@ -171,9 +177,10 @@
  *
  * 布局：DataScreen 风格（demo1 同款）
  * - 顶部标题栏（中文标题 + 英文副标题 + 在线状态 + 实时时钟 + 全屏切换）
- * - 三栏分栏：左 26% KPI + 趋势 / 中央 flex:1 地图 / 右 26% 审批跑马灯 + AI 大脑
- * - 省份联动：点击地图省份 → KPI / 趋势 / 状态分布 / Top10 全部按 province 过滤
- * - AI 大脑：6 维雷达 + summary / risks / suggestions 打字机轮播
+ * - 三栏分栏：左 26% KPI + 营收月度趋势 YTD / 中央 flex:1 地图 / 右 26% 审批跑马灯 + AI 大脑
+ * - 省份联动：点击地图省份 → KPI / 营收趋势 / 状态分布 / Top10 全部按 province 过滤
+ *   - v3.11：revenue_trend 也支持 province（DAO.trend_revenue 改：province 非空 → biz_contract.amount 按 sign_date 月份聚合；province 为空 → biz_operation.revenue 手工录入）
+ * - AI 大脑：dome 同款 6 维雷达 + summary 一句话 + 风险/建议双列分栏卡片
  *
  * 数据源：
  *   - GET /biz/dashboard/overview[?province=xx]
@@ -294,18 +301,29 @@ const revenueAmounts = computed(() => (overview.value.revenueTrend || []).map((t
 const metricCards = computed(() => {
   const k = overview.value.kpi || {}
   return [
-    { label: '合同总数', value: k.contractTotal || 0, color: '#2de1c2', ico: '📑', prefix: '' },
+    // --- SRS B1-01 P0 核心财务指标卡（v3.12 补齐） ---
+    {
+      label: '总营收(元)',
+      value: Number(k.operationRevenue || 0),
+      color: '#2de1c2', ico: '💰', prefix: '¥'
+    },
+    {
+      label: '总毛利(元)',
+      value: Number(k.operationGrossProfit || 0),
+      color: '#39c5ff', ico: '📈', prefix: '¥'
+    },
+    { label: '订单数', value: k.operationContractCount || 0, color: '#ffd34e', ico: '📋' },
+    // --- 合同运营状态卡（保留） ---
+    { label: '合同总数', value: k.contractTotal || 0, color: '#2de1c2', ico: '📑' },
     { label: '审批中', value: k.contractPending || 0, color: '#ffd34e', ico: '📝' },
     { label: '已通过', value: k.contractApproved || 0, color: '#39c5ff', ico: '✅' },
-    { label: '已驳回', value: k.contractRejected || 0, color: '#ff7ac6', ico: '⛔' },
     {
       label: '本月合同金额(元)',
       value: Number(k.contractMonthAmount || 0),
-      color: '#2de1c2',
-      ico: '💰',
-      prefix: '¥'
+      color: '#2de1c2', ico: '💵', prefix: '¥'
     },
-    { label: '待我审批', value: k.approvalPending || 0, color: '#ff7ac6', ico: '📌' }
+    { label: '待我审批', value: k.approvalPending || 0, color: '#ff7ac6', ico: '📌' },
+    { label: '待开发票', value: k.invoicePending || 0, color: '#e6a23c', ico: '🧾' }
   ]
 })
 
@@ -319,6 +337,23 @@ const marqueeLoop = computed(() => [
   ...recentApprovals.value
 ])
 
+// AI 诊断状态文案（v3.11：空数据时显示具体原因）
+const debugAiStatus = computed(() => {
+  if (ai.value && ai.value.radarScores && ai.value.radarScores.length) {
+    return `已诊断（${ai.value.radarScores.length} 维）`
+  }
+  if (!ai.value || Object.keys(ai.value).length === 0) {
+    return '尚未请求 / 请求被 catch 吞掉 / axios 拦截器返回非预期结构'
+  }
+  if (ai.value.code !== undefined && ai.value.code !== 200) {
+    return `后端 code=${ai.value.code}`
+  }
+  if (ai.value.radarScores !== undefined && !ai.value.radarScores.length) {
+    return `后端返回空数组 data=${JSON.stringify(ai.value).slice(0, 200)}`
+  }
+  return '诊断中…'
+})
+
 // AI 雷达 6 维指标（与后端 metrics 顺序对齐，v3.10 改 dome 同款 6 维）
 const radarIndicators = computed(() => [
   { name: '资金合规', max: 100 },
@@ -329,12 +364,6 @@ const radarIndicators = computed(() => [
   { name: '数据质量', max: 100 }
 ])
 
-// AI 风险等级标签（dome AiBrainPanel.vue lvType 同款：high/medium/low → 高/中/低）
-const aiLevelLabel = (lv) => ({
-  high: '高风险',
-  medium: '中风险',
-  low: '低风险'
-}[lv] || lv || '提示')
 
 // AI 诊断结果在模板内直接使用 ai.risks / ai.suggestions 渲染分栏
 // （替代 v3.9 之前的打字机轮播）
@@ -353,11 +382,12 @@ async function load() {
   const ctrl = new AbortController()
   abortCtrl = ctrl
   try {
+    // axios 拦截器已把 res.data 解出来，业务数据在 res.data
     const res = await getDashboardOverview(
       province.value ? { province: province.value } : {},
       { signal: ctrl.signal }
     )
-    const data = res?.data || res || {}
+    const data = res?.data ?? {}
     overview.value = data
     generatedAt.value = data.generatedAt || ""
   } catch (e) { /* 静默吞掉 axios cancel */ } finally { loadInFlight = false }
@@ -367,10 +397,17 @@ async function loadAi() {
   if (loadAiInFlight) return
   loadAiInFlight = true
   try {
+    // axios 拦截器（utils/request.js L132）已把 res.data 解出来，
+    // 所以这里 res 就是 RuoYi 通用响应 {code, msg, data: <业务>};
+    // 业务数据在 res.data.
     const res = await getDashboardAiDiagnose()
-    ai.value = res?.data || res || {}
-    startTyper()
-  } catch (e) { /* 静默 */ } finally { loadAiInFlight = false }
+    ai.value = res?.data ?? {}
+    if (typeof window !== 'undefined' && window.console) {
+      console.log('[AI diagnose payload]', ai.value)
+    }
+  } catch (e) {
+    if (typeof window !== 'undefined' && window.console) console.error('[AI diagnose error]', e)
+  } finally { loadAiInFlight = false }
 }
 
 onMounted(() => {
@@ -397,7 +434,6 @@ onBeforeUnmount(() => {
   clearInterval(clockTimer)
   clearInterval(overviewTimer)
   clearInterval(aiTimer)
-  stopTyper()
   abortCtrl?.abort()
   document.removeEventListener('fullscreenchange', onFullscreenChange)
   document.removeEventListener('webkitfullscreenchange', onFullscreenChange)
@@ -594,18 +630,19 @@ onBeforeUnmount(() => {
 }
 .mq-approver { color: #ff9c00; font-size: 11px; }
 
-/* AI 大脑 */
-.ai-typer {
+/* AI 大脑（v3.10 改：雷达 + summary + 风险/建议分栏，dome AiBrainPanel.vue 双列布局） */
+.ai-summary {
   margin-top: 10px;
-  min-height: 66px;
-  padding: 10px 12px;
+  min-height: 38px;
+  padding: 9px 12px;
   background: rgba(6, 20, 46, 0.6);
   border: 1px solid rgba(45, 225, 194, 0.2);
   border-radius: 8px;
   font-size: 12.5px;
-  line-height: 1.7;
+  line-height: 1.6;
   color: #bfe8ff;
 }
+.ai-summary .ai-tag { margin-right: 8px; }
 .ai-tag {
   display: inline-block;
   background: linear-gradient(90deg, #39c5ff, #2de1c2);
@@ -613,10 +650,65 @@ onBeforeUnmount(() => {
   font-weight: 800;
   border-radius: 4px;
   padding: 0 6px;
-  margin-right: 8px;
   font-size: 11px;
 }
 .ai-empty { padding: 40px; text-align: center; color: #7fa8d0; }
+.ai-debug {
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: rgba(255, 99, 99, 0.15);
+  border: 1px dashed rgba(255, 99, 99, 0.5);
+  color: #ffb3b3;
+  font-size: 11px;
+}
+.ai-debug em { font-style: normal; font-weight: 700; }
+.ai-debug small { display: block; margin-top: 4px; opacity: 0.85; word-break: break-all; }
+.ai-empty-mini { padding: 12px; text-align: center; color: #2de1c2; font-size: 12px; }
+.ai-cols { display: flex; gap: 12px; margin-top: 12px; }
+.ai-col { flex: 1; min-width: 0; }
+.col-title {
+  display: flex; align-items: center; gap: 6px;
+  font-weight: 600; font-size: 12.5px;
+  margin-bottom: 8px; color: #eafcff;
+  padding-left: 6px; border-left: 2px solid #2de1c2;
+}
+.risk-item {
+  border: 1px solid rgba(96, 150, 210, 0.16);
+  border-left: 3px solid #47618a;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  background: rgba(10, 28, 60, 0.55);
+}
+.risk-item.lv-high   { border-left-color: #f56c6c; }
+.risk-item.lv-medium { border-left-color: #e6a23c; }
+.risk-item.lv-low    { border-left-color: #67c23a; }
+.risk-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.risk-tag {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+  color: #fff;
+  background: #47618a;
+}
+.risk-tag.lv-high   { background: #f56c6c; }
+.risk-tag.lv-medium { background: #e6a23c; }
+.risk-tag.lv-low    { background: #67c23a; }
+.risk-title { font-weight: 600; color: #eafcff; font-size: 12.5px; }
+.risk-detail { margin-top: 4px; font-size: 11.5px; color: #a9c2e0; line-height: 1.55; }
+.sug-item {
+  border: 1px solid rgba(96, 150, 210, 0.16);
+  border-left: 2px solid #2de1c2;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  background: rgba(10, 28, 60, 0.55);
+}
+.sug-title { font-weight: 600; color: #7fd8ff; font-size: 12.5px; }
+.sug-detail { margin-top: 4px; font-size: 11.5px; color: #a9c2e0; line-height: 1.55; }
 .caret { color: #2de1c2; animation: blink 1s steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0 } }
 </style>

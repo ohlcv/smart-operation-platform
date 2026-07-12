@@ -89,13 +89,14 @@ class DashboardService:
 
         role_keys = _current_user_role_keys(current_user)
 
-        # 10 个 DAO 调用并发执行
+        # 11 个 DAO 调用并发执行（v3.12 加 kpi_operation）
         (
             kpi_contract,
             kpi_customer,
             kpi_channel,
             kpi_invoice,
             kpi_approval,
+            kpi_operation,
             trend_7d,
             revenue_trend,
             status_distribution,
@@ -108,8 +109,9 @@ class DashboardService:
             DashboardDAO.kpi_channel(db),
             DashboardDAO.kpi_invoice_pending(db),
             DashboardDAO.kpi_approval_pending(db, role_keys),
+            DashboardDAO.kpi_operation(db, province),  # v3.12：SRS B1-01 核心财务指标（营收/毛利/订单数）
             DashboardDAO.trend_7d(db, province),
-            DashboardDAO.trend_revenue(db),
+            DashboardDAO.trend_revenue(db, province),  # v3.11：省份联动（contract.amount 按月聚合）
             DashboardDAO.status_distribution(db, province),
             DashboardDAO.top_customers(db, province),
             DashboardDAO.recent_approvals(db),
@@ -122,6 +124,7 @@ class DashboardService:
             'channelTotal': kpi_channel,
             'invoicePending': kpi_invoice,
             'approvalPending': kpi_approval,
+            **kpi_operation,  # v3.12：operationRevenue/operationGrossProfit/operationContractCount
         }
 
         overview = DashboardOverviewModel(
