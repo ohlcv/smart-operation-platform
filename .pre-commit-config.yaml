@@ -1,0 +1,26 @@
+# ============================================================================
+# Pre-commit 配置：保护 ORM 改动时同步 alembic 迁移，避免 1054 错误。
+#
+# 用法：
+#   pip install pre-commit
+#   pre-commit install
+#
+# 跳过一次：git commit --no-verify
+# 跳过某个钩子：SKIP=check-orm-alembic-sync git commit -m "..."
+#
+# 详细：ruoyi-fastapi-backend/.pre-commit-hooks/check_orm_alembic_sync.py
+# 文档：docs/04-开发/DEBUG/orm-vs-alembic-sync-2026-07-12.md
+# ============================================================================
+repos:
+  - repo: local
+    hooks:
+      - id: check-orm-alembic-sync
+        name: ORM ↔ Alembic 同步检查
+        entry: python ruoyi-fastapi-backend/.pre-commit-hooks/check_orm_alembic_sync.py
+        language: system
+        pass_filenames: false
+        # ORM 文件改动 + alembic 迁移文件没改动 → 触发
+        files: '(ruoyi-fastapi-backend/module_(admin|biz)/entity/do/.*\.py|alembic/versions/.*\.py)$'
+        # 总是跑（不只是 staged 时），因为 staged 检测在脚本内部
+        always_run: true
+        stages: [pre-commit]  # commit 时跑，commit-msg 不跑
