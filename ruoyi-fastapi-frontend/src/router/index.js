@@ -231,6 +231,29 @@ export const dynamicRoutes = [
     name: 'BizDashboardScreen',
     permissions: ['biz:dashboard:view'],
     meta: { title: '仪表盘 · 大屏', noCache: false, hidden: true, activeMenu: '/dashboard' }
+  },
+  {
+    path: '/ai',
+    component: Layout,
+    redirect: '/ai/chat',
+    permissions: ['ai:view'],
+    meta: { title: 'AI管理', icon: 'ai', noCache: false },
+    children: [
+      {
+        path: 'chat',
+        component: () => import('@/views/ai/chat/index.vue'),
+        name: 'AiChat',
+        permissions: ['ai:chat:list'],
+        meta: { title: 'AI对话', icon: 'chat', noCache: false, activeMenu: '/ai' }
+      },
+      {
+        path: 'model',
+        component: () => import('@/views/ai/model/index.vue'),
+        name: 'AiModel',
+        permissions: ['ai:model:list'],
+        meta: { title: '模型管理', icon: 'model', noCache: false, activeMenu: '/ai' }
+      }
+    ]
   }
 ] // eslint-disable-line
 

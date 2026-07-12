@@ -1,18 +1,16 @@
 # 构建阶段
-FROM node:18-slim AS builder
+FROM node:20-bookworm-slim AS builder
 WORKDIR /app
-
-# 复制源代码
-COPY . .
 
 # 设置npm镜像源
 RUN npm config set registry https://registry.npmmirror.com
 
-# 安装依赖
-RUN NODE_OPTIONS="--max-old-space-size=4096" npm install
-
-# 执行docker构建命令
-RUN NODE_OPTIONS="--max-old-space-size=4096" npm run build:docker
+# 优先使用宿主机预先构建好的产物，避免在容器内进行网络依赖安装
+# 本地构建方式：
+#   cd ruoyi-fastapi-frontend
+#   npm install
+#   npm run build:docker
+COPY dist ./dist
 
 # 运行阶段
 FROM nginx:latest

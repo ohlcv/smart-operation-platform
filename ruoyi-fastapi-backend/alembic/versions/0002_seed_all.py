@@ -101,11 +101,30 @@ def upgrade() -> None:
           (101, 3), (102, 4), (103, 5), (104, 6), (105, 7), (106, 8), (107, 9);
     """)
 
+    # ============== sys_post（RuoYi 原版 4 个岗位：ceo/se/hr/user） ==============
+    # baseline 已建表，seed 必须插数据，否则 sys_user_post 无法关联
+    op.execute("""
+        INSERT IGNORE INTO sys_post
+          (post_id, post_code, post_name, post_sort, status, create_by, create_time, remark)
+        VALUES
+          (1, 'ceo',  '董事长',    1, '0', 'admin', NOW(), ''),
+          (2, 'se',   '项目经理',  2, '0', 'admin', NOW(), ''),
+          (3, 'hr',   '人力资源',  3, '0', 'admin', NOW(), ''),
+          (4, 'user', '普通员工',  4, '0', 'admin', NOW(), '');
+    """)
+
+    # ============== sys_user_post：admin 任职 ceo/项目经理，普通员工挂 user ==============
+    op.execute("""
+        INSERT IGNORE INTO sys_user_post (user_id, post_id) VALUES
+          (1, 1),  -- admin 兼任董事长
+          (1, 2); -- admin 兼任项目经理（兼容原版）
+    """)
+
     # ============== sys_menu（RuoYi 原生 + 业务 5 个菜单 + 仪表盘） ==============
-    # 一级目录：1=系统管理  2=系统监控  3=系统工具  5=业务管理  13=仪表盘
-    # 业务子菜单：6=合同  7=客户  8=审批中心  12=渠道  14=发票  15=财务  16=经营数据
+    # 一级目录：1=系统管理  2=系统监控  3=系统工具  4=AI 管理  5=业务管理  13=仪表盘
+    # 业务子菜单连续顺序：合同 1 / 客户 2 / 审批 3 / 渠道 4 / 发票 5 / 财务 6 / 经营 7
     # 补全菜单树：100-120（系统管理/监控/工具 二级）+ 500-501（日志管理三级）+ 1000-1064（按钮）
-    # 注意：原 menu_id=4「若依官网」已移除（若依官网不再外链）
+    # 注意：原 menu_id=4「若依官网」已移除（若依官网不再外链），AI 管理复用了 4 号 order_num
     op.execute("""
         INSERT IGNORE INTO sys_menu
           (menu_id, menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, remark)
@@ -113,15 +132,15 @@ def upgrade() -> None:
           (1, '系统管理', 0, 1, 'system', NULL, 1, 0, 'M', '0', '0', '', 'system', 'admin', NOW(), '系统管理目录'),
           (2, '系统监控', 0, 2, 'monitor', NULL, 1, 0, 'M', '0', '0', '', 'monitor', 'admin', NOW(), '系统监控目录'),
           (3, '系统工具', 0, 3, 'tool', NULL, 1, 0, 'M', '0', '0', '', 'tool', 'admin', NOW(), '系统工具目录'),
-          (5, '业务管理', 0, 4, 'biz', NULL, 1, 0, 'M', '0', '0', 'biz:view', 'shopping', 'admin', NOW(), '业务管理目录'),
+          (5, '业务管理', 0, 5, 'biz', NULL, 1, 0, 'M', '0', '0', 'biz:view', 'shopping', 'admin', NOW(), '业务管理目录'),
           (6, '合同管理', 5, 1, 'biz/contract', 'biz/contract/index', 1, 0, 'C', '0', '0', 'contract:list,contract:add,contract:edit,contract:delete,contract:submit', 'list', 'admin', NOW(), '合同管理'),
           (7, '客户管理', 5, 2, 'biz/customer', 'biz/customer/index', 1, 0, 'C', '0', '0', 'customer:list,customer:add,customer:edit,customer:delete', 'peoples', 'admin', NOW(), '客户管理'),
           (8, '审批中心', 5, 3, 'biz/approval', 'biz/approval/index', 1, 0, 'C', '0', '0', 'approval:list,approval:approve,approval:reject', 'checkbox', 'admin', NOW(), '7 级审批链路'),
-          (12, '渠道管理', 5, 9, 'biz/channel', 'biz/channel/index', 1, 0, 'C', '0', '0', 'channel:list,channel:add,channel:edit,channel:delete,channel:import', 'link', 'admin', NOW(), '路线A'),
-          (13, '仪表盘', 0, 13, '/dashboard', 'cockpit/dashboard', 1, 0, 'C', '0', '0', 'biz:dashboard:view', 'dashboard', 'admin', NOW(), 'v3.6 嵌入 Layout'),
-          (14, '发票管理', 5, 10, 'biz/invoice', 'biz/invoice/index', 1, 0, 'C', '0', '0', 'invoice:list,invoice:add,invoice:edit,invoice:delete,invoice:issue,invoice:void', 'pdf', 'admin', NOW(), '路线A'),
-          (15, '财务管理', 5, 11, 'biz/finance', 'biz/finance/index', 1, 0, 'C', '0', '0', 'finance:list,finance:add,finance:edit,finance:delete,finance:import', 'money', 'admin', NOW(), '路线A'),
-          (16, '经营数据', 5, 12, 'biz/operation', 'biz/operation/index', 1, 0, 'C', '0', '0', 'operation:list,operation:add,operation:edit,operation:delete,operation:comparison', 'chart', 'admin', NOW(), '路线A'),
+          (12, '渠道管理', 5, 4, 'biz/channel', 'biz/channel/index', 1, 0, 'C', '0', '0', 'channel:list,channel:add,channel:edit,channel:delete,channel:import', 'link', 'admin', NOW(), '路线A'),
+          (13, '仪表盘', 0, 13, '/dashboard', 'dashboard/index', 1, 0, 'C', '0', '0', 'biz:dashboard:view', 'dashboard', 'admin', NOW(), 'v3.6 嵌入 Layout'),
+          (14, '发票管理', 5, 5, 'biz/invoice', 'biz/invoice/index', 1, 0, 'C', '0', '0', 'invoice:list,invoice:add,invoice:edit,invoice:delete,invoice:issue,invoice:void', 'pdf', 'admin', NOW(), '路线A'),
+          (15, '财务管理', 5, 6, 'biz/finance', 'biz/finance/index', 1, 0, 'C', '0', '0', 'finance:list,finance:add,finance:edit,finance:delete,finance:import', 'money', 'admin', NOW(), '路线A'),
+          (16, '经营数据', 5, 7, 'biz/operation', 'biz/operation/index', 1, 0, 'C', '0', '0', 'operation:list,operation:add,operation:edit,operation:delete,operation:comparison', 'chart', 'admin', NOW(), '路线A'),
           /* 系统管理 二级菜单 */
           (100, '用户管理', 1, 1, 'user',       'system/user/index',      1, 0, 'C', '0', '0', 'system:user:list',       'user',       'admin', NOW(), '用户管理菜单'),
           (101, '角色管理', 1, 2, 'role',       'system/role/index',      1, 0, 'C', '0', '0', 'system:role:list',       'peoples',    'admin', NOW(), '角色管理菜单'),
@@ -329,7 +348,45 @@ def upgrade() -> None:
           (109, 1, '景区', 'scenic', 'customer_type', '', '', 'N', '0', 'admin', NOW(), '景区客户'),
           (110, 2, '酒店', 'hotel', 'customer_type', '', '', 'N', '0', 'admin', NOW(), '酒店客户'),
           (111, 3, '旅行社', 'agency', 'customer_type', '', '', 'N', '0', 'admin', NOW(), '旅行社客户'),
-          (112, 4, '出版社', 'publish', 'customer_type', '', '', 'N', '0', 'admin', NOW(), '出版社客户');
+          (112, 4, '出版社', 'publish', 'customer_type', '', '', 'N', '0', 'admin', NOW(), '出版社客户'),
+          /* ai_provider_type（37 条，与原 ruoyi-fastapi.sql 一致） */
+          (33,  1,  'AIMLAPI',         'AIMLAPI',          'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'AIMLAPI'),
+          (34,  2,  'Anthropic',       'Anthropic',        'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'Anthropic'),
+          (35,  3,  'Cerebras',        'Cerebras',         'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'Cerebras'),
+          (36,  4,  'CerebrasOpenAI',  'CerebrasOpenAI',   'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'CerebrasOpenAI'),
+          (37,  5,  'Cohere',          'Cohere',           'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'Cohere'),
+          (38,  6,  'CometAPI',        'CometAPI',         'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'CometAPI'),
+          (39,  7,  'DashScope',       'DashScope',        'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'DashScope'),
+          (40,  8,  'DeepInfra',       'DeepInfra',        'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'DeepInfra'),
+          (41,  9,  'DeepSeek',        'DeepSeek',         'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'DeepSeek'),
+          (42,  10, 'Fireworks',       'Fireworks',        'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'Fireworks'),
+          (43,  11, 'Google',          'Google',           'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'Google'),
+          (44,  12, 'Groq',            'Groq',             'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'Groq'),
+          (45,  13, 'HuggingFace',     'HuggingFace',      'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'HuggingFace'),
+          (46,  14, 'LangDB',          'LangDB',           'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'LangDB'),
+          (47,  15, 'LiteLLM',         'LiteLLM',          'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'LiteLLM'),
+          (48,  16, 'LiteLLMOpenAI',   'LiteLLMOpenAI',    'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'LiteLLMOpenAI'),
+          (49,  17, 'LlamaCpp',        'LlamaCpp',         'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'LlamaCpp'),
+          (50,  18, 'LMStudio',        'LMStudio',         'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'LMStudio'),
+          (51,  19, 'Meta',            'Meta',             'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'Meta'),
+          (52,  20, 'Mistral',         'Mistral',          'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'Mistral'),
+          (53,  21, 'N1N',             'N1N',              'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'N1N'),
+          (54,  22, 'Nebius',          'Nebius',           'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'Nebius'),
+          (55,  23, 'Nexus',           'Nexus',            'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'Nexus'),
+          (56,  24, 'Nvidia',          'Nvidia',           'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'Nvidia'),
+          (57,  25, 'Ollama',          'Ollama',           'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'Ollama'),
+          (58,  26, 'OpenAI',          'OpenAI',           'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'OpenAI'),
+          (59,  27, 'OpenAIResponses', 'OpenAIResponses',  'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'OpenAIResponses'),
+          (60,  28, 'OpenRouter',      'OpenRouter',       'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'OpenRouter'),
+          (61,  29, 'Perplexity',      'Perplexity',       'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'Perplexity'),
+          (62,  30, 'Portkey',         'Portkey',          'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'Portkey'),
+          (63,  31, 'Requesty',        'Requesty',         'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'Requesty'),
+          (64,  32, 'Sambanova',       'Sambanova',        'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'Sambanova'),
+          (65,  33, 'SiliconFlow',     'SiliconFlow',      'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'SiliconFlow'),
+          (66,  34, 'Together',        'Together',         'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'Together'),
+          (67,  35, 'Vercel',          'Vercel',           'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'Vercel'),
+          (68,  36, 'VLLM',            'VLLM',             'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'VLLM'),
+          (69,  37, 'xAI',             'xAI',              'ai_provider_type', '', 'info', 'N', '0', 'admin', NOW(), 'xAI');
     """)
 
     # ============================================================
@@ -396,13 +453,16 @@ def upgrade() -> None:
     """)
 
     # PLACEHOLDER_AI_MENU
+    # 图标名与前端 src/assets/icons/svg/ 对齐：ai-manage / ai-model / ai-chat，
+    # 顺序与原 ruoyi-fastapi.sql 一致；alembic 之前写 magic-stick / model / chat
+    # 与前端 svg 文件名不匹配，导致菜单图标缺失。
     op.execute("""
         INSERT IGNORE INTO sys_menu
           (menu_id, menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, remark)
         VALUES
-          (130, 'AI 管理', 0, 14, 'ai', NULL, 1, 0, 'M', '0', '0', '', 'magic-stick', 'admin', NOW(), 'AI 管理目录'),
-          (131, 'AI 模型', 130, 1, 'ai/model', 'ai/model/index', 1, 0, 'C', '0', '0', 'ai:model:list', 'model', 'admin', NOW(), 'AI 模型菜单'),
-          (132, 'AI 对话', 130, 2, 'ai/chat', 'ai/chat/index', 1, 0, 'C', '0', '0', '', 'chat', 'admin', NOW(), 'AI 对话菜单');
+          (130, 'AI 管理', 0, 4, 'ai', NULL, 1, 0, 'M', '0', '0', '', 'ai-manage', 'admin', NOW(), 'AI 管理目录'),
+          (131, 'AI 模型', 130, 1, 'ai/model', 'ai/model/index', 1, 0, 'C', '0', '0', 'ai:model:list', 'ai-model', 'admin', NOW(), 'AI 模型菜单'),
+          (132, 'AI 对话', 130, 2, 'ai/chat', 'ai/chat/index', 1, 0, 'C', '0', '0', 'ai:chat:list', 'ai-chat', 'admin', NOW(), 'AI 对话菜单');
     """)
 
     # AI 模型 按钮 5 个
@@ -432,6 +492,14 @@ def upgrade() -> None:
           (9, 130), (9, 131), (9, 132), (9, 2000);
     """)
 
+    # ============== sys_role_dept：common 角色关联部分部门（RuoYi 原版数据） ==============
+    op.execute("""
+        INSERT IGNORE INTO sys_role_dept (role_id, dept_id) VALUES
+          (2, 100),
+          (2, 101),
+          (2, 105);
+    """)
+
 
 def downgrade() -> None:
     """downgrade：清空种子数据（按依赖反向）"""
@@ -451,6 +519,9 @@ def downgrade() -> None:
     op.execute("DELETE FROM sys_role_menu WHERE menu_id IN (130, 131, 132, 2000, 2001, 2002, 2003, 2004);")
     op.execute("DELETE FROM sys_menu WHERE menu_id IN (130, 131, 132, 2000, 2001, 2002, 2003, 2004);")
     op.execute("DELETE FROM sys_role_menu;")
+    op.execute("DELETE FROM sys_role_dept;")
+    op.execute("DELETE FROM sys_user_post;")
+    op.execute("DELETE FROM sys_post;")
     op.execute("DELETE FROM sys_user_role WHERE user_id IN (101, 102, 103, 104, 105, 106, 107);")
     op.execute("DELETE FROM sys_user_role WHERE user_id = 1;")
     op.execute("DELETE FROM sys_user WHERE user_id IN (101, 102, 103, 104, 105, 106, 107);")

@@ -47,6 +47,12 @@ check_docker() {
   fi
 }
 
+# 镜像是否存在（任意 tag 都算存在）
+image_exists() {
+  local image="$1"
+  docker image inspect "$image" &>/dev/null
+}
+
 # ---- Docker 容器管理 ----
 # 全部 5 个容器（本地模式和 Docker 模式都会用到 MySQL/Redis）
 ALL_CONTAINERS="ruoyi-mysql ruoyi-redis ruoyi-frontend ruoyi-backend-my ruoyi-pg"
@@ -64,6 +70,51 @@ stop_all_containers() {
       fi
     fi
   done
+}
+
+# 检查前端 dist 是否过期（源码比 dist 新 → 过期）
+# 返回值：0 过期，1 不需要重建
+frontend_dist_stale() {
+  local dist="$FRONTEND_DIR/dist"
+  [ ! -d "$dist" ] && return 0
+  # 找 src 或 package.json 中比 dist 最新的 index.html 更新的文件
+  local newer
+  newer=$(find -L "$FRONTEND_DIR/src" "$FRONTEND_DIR/package.json" "$FRONTEND_DIR/index.html" "$FRONTEND_DIR/vite.config.*" \
+    -type f -newer "$dist/index.html" 2>/dev/null | head -1)
+  [ -n "$newer" ]
+}
+
+# Docker 模式：自动构建/提示前端 dist
+ensure_frontend_dist() {
+  if ! frontend_dist_stale; then
+    log_info "  前端 dist: 最新，跳过构建 ✓"
+    return 0
+  fi
+
+  if [ ! -d "$FRONTEND_DIR/dist" ]; then
+    log_warn "  前端 dist 缺失"
+  else
+    log_warn "  前端源码比 dist 新，需要重新构建"
+  fi
+
+  local ans
+  read -r -p "  是否现在自动构建前端 dist? [Y/n] " ans
+  case "$ans" in
+    [nN]|[nN][oO])
+      log_warn "  跳过构建，Docker 镜像里将使用现有（可能过期）的 dist"
+      return 0
+      ;;
+  esac
+
+  log_info "  构建前端 dist..."
+  cd "$FRONTEND_DIR"
+  if [ ! -d "node_modules" ]; then
+    log_info "  安装前端依赖..."
+    npm install --no-audit --no-fund
+  fi
+  npm run build:docker
+  cd "$PROJECT_ROOT"
+  log_info "  前端 dist 构建完成 ✓"
 }
 
 # ---- 本地进程管理 ----
@@ -432,13 +483,38 @@ run_docker_mode() {
   ensure_clean_ruoyi_network
 
   # ---- 清理并启动 ----
-  # docker compose build 自带 hash 缓存：构建上下文（代码+Dockerfile）未变就秒级复用镜像，
-  # 改了才会真正 rebuild。所以这里用 --build 既"快"又"对"：
-  #   - 未改代码 → 复用本地镜像（≈`up -d`，秒级）
-  #   - 改了代码 → 自动 rebuild（不需要手动 `build --no-cache`）
-  # 这与 README.md 第 122-126 行 "Docker Compose（生产 / 演示）" 推荐用法一致。
-  log_step "清理旧容器并启动（按需重建镜像）..."
-  stop_all_containers
+  # 智能构建策略：
+  #   1. ruoyi-frontend / ruoyi-backend-my 任一镜像不存在 → 必须 build
+  #   2. 镜像都存在 → 默认复用现有镜像（秒级 up -d），不传 --build
+  #   3. 用户显式传 --rebuild → 强制全部重建
+  log_step "检查镜像并启动..."
+  local need_build_flag=""
+  local build_args=()
+  if [ "${REBUILD:-0}" = "1" ]; then
+    log_info "  用户指定 --rebuild，强制重建镜像"
+    need_build_flag="--build --force-recreate --remove-orphans"
+  else
+    for img in ruoyi-frontend:latest ruoyi-backend-my:latest; do
+      if ! image_exists "$img"; then
+        log_info "  镜像 $img 缺失，需要构建"
+        need_build_flag="--build"
+        break
+      fi
+    done
+    if [ -z "$need_build_flag" ]; then
+      log_info "  镜像均存在，复用现有镜像（秒级启动）"
+    fi
+  fi
+
+  # 透传镜像源配置到后端构建（默认阿里云）
+  # 用户可通过环境变量自定义：PIP_INDEX_URL=https://mirrors.huaweicloud.com/repository/pypi/simple ./start-dev.sh --docker --rebuild
+  if [ -n "${PIP_INDEX_URL:-}" ]; then
+    log_info "  自定义 PIP 镜像源: $PIP_INDEX_URL"
+    build_args+=("--build-arg" "PIP_INDEX_URL=$PIP_INDEX_URL")
+  fi
+
+  # 前端 dist 过期检查（如需构建则由 compose 在容器内 npm install；此处只判断 dist 是否存在）
+  ensure_frontend_dist
 
   cd "$PROJECT_ROOT"
   log_info "  启动容器..."
@@ -446,7 +522,7 @@ run_docker_mode() {
   # 这样 rebuild 时用户能看到 pip 在下载哪一步；没 rebuild 时也能看到
   # Pulling/Extracting/Starting 的实时状态，不会误以为"卡住"。
   local up_log="/tmp/start-dev-up-$$.log"
-  if ! docker compose -f "$DOCKER_COMPOSE_FILE" up -d --build 2>&1 | tee "$up_log"; then
+  if ! docker compose -f "$DOCKER_COMPOSE_FILE" up -d $need_build_flag "${build_args[@]}" 2>&1 | tee "$up_log"; then
     log_error "  启动失败（原始日志见末尾）："
     sed 's/^/    /' "$up_log"
     log_error "  常见原因：网络 ruoyi-network 状态异常 / 端口冲突 / 配置错误 / 容器内应用崩"
@@ -488,13 +564,20 @@ run_docker_mode() {
     fi
   done
 
+  # APP_ROOT_PATH 决定后端路由前缀：本地模式 = /dev-api，Docker 模式 = /docker-api
+  # 从后端 .env.dockermy 读取，确保提示地址与实际路由前缀一致
+  local app_root_path
+  app_root_path=$(grep -E '^APP_ROOT_PATH[[:space:]]*=' "$BACKEND_DIR/.env.dockermy" 2>/dev/null \
+    | tail -1 | sed -E "s/.*APP_ROOT_PATH[[:space:]]*=[[:space:]]*['\"]?([^'\"]+)['\"].*/\1/")
+  app_root_path="${app_root_path:-/docker-api}"
+
   echo ""
   echo "============================================"
   log_mode "  Docker 容器模式 - 启动完成"
   echo "============================================"
   echo "  前端:     http://localhost:12580"
-  echo "  后端:     http://localhost:19099/dev-api"
-  echo "  API 文档: http://localhost:19099/dev-api/docs"
+  echo "  后端:     http://localhost:19099${app_root_path}"
+  echo "  API 文档: http://localhost:19099${app_root_path}/proxy-docs"
   echo "  MySQL:    localhost:13306"
   echo "  Redis:    localhost:16379"
   echo ""
@@ -544,14 +627,17 @@ stop_all_mode() {
 # =============================================================================
 main() {
   MODE=""
+  REBUILD=0
   for arg in "$@"; do
     case $arg in
       --docker|-d) MODE="docker" ;;
       --stop|-s)   MODE="stop" ;;
+      --rebuild)   REBUILD=1 ;;
       --help|-h)   MODE="help" ;;
       *)           MODE="local" ;;
     esac
   done
+  export REBUILD
 
   if [ "$MODE" = "help" ]; then
     echo "用法: $0 [选项]"
@@ -559,6 +645,7 @@ main() {
     echo "选项:"
     echo "  (默认)        本地开发模式：Docker MySQL/Redis + 本地前后端"
     echo "  --docker      Docker 容器模式：全容器，模拟生产环境"
+    echo "  --rebuild     Docker 模式：强制重建镜像（搭配 --docker 使用）"
     echo "  --stop        停止所有服务（容器 + 本地进程）"
     echo "  --help        显示帮助"
     exit 0

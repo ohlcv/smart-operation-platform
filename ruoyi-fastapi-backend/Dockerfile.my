@@ -5,7 +5,12 @@ WORKDIR /app
 COPY . .
 
 # 安装依赖
-RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+# 默认使用阿里云镜像（在国内稳定 + 速度快）。
+# 可通过 --build-arg PIP_INDEX_URL 覆盖，例如：
+#   docker build --build-arg PIP_INDEX_URL=https://mirrors.huaweicloud.com/repository/pypi/simple ...
+ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple
+RUN pip install --no-cache-dir --default-timeout=60 --retries=5 \
+    -r requirements.txt -i ${PIP_INDEX_URL}
 
 # 暴露端口
 EXPOSE 9099
