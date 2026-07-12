@@ -64,9 +64,9 @@ export const constantRoutes = [
     children: [
       {
         path: '/index',
-        component: () => import('@/views/dashboard/index'),
+        component: () => import('@/views/index/index'),
         name: 'Index',
-        meta: { title: '首页', icon: 'dashboard', affix: true }
+        meta: { title: '首页', icon: 'guide', affix: true }
       }
     ]
   },
@@ -168,31 +168,31 @@ export const dynamicRoutes = [
         path: 'approval',
         component: () => import('@/views/biz/approval/index.vue'),
         name: 'BizApproval',
-        meta: { title: '审批中心', icon: 'check', noCache: false }
+        meta: { title: '审批中心', icon: 'clipboard', noCache: false }
       },
       {
         path: 'contract',
         component: () => import('@/views/biz/contract/index.vue'),
         name: 'BizContract',
-        meta: { title: '合同管理', icon: 'document', noCache: false }
+        meta: { title: '合同管理', icon: 'list', noCache: false }
       },
       {
         path: 'customer',
         component: () => import('@/views/biz/customer/index.vue'),
         name: 'BizCustomer',
-        meta: { title: '客户档案', icon: 'user', noCache: false }
+        meta: { title: '客户档案', icon: 'peoples', noCache: false }
       },
       {
         path: 'channel',
         component: () => import('@/views/biz/channel/index.vue'),
         name: 'BizChannel',
-        meta: { title: '渠道管理', icon: 'share', noCache: false }
+        meta: { title: '渠道管理', icon: 'link', noCache: false }
       },
       {
         path: 'invoice',
         component: () => import('@/views/biz/invoice/index.vue'),
         name: 'BizInvoice',
-        meta: { title: '发票管理', icon: 'ticket', noCache: false }
+        meta: { title: '发票管理', icon: 'pdf', noCache: false }
       },
       {
         path: 'finance',
@@ -204,38 +204,24 @@ export const dynamicRoutes = [
         path: 'operation',
         component: () => import('@/views/biz/operation/index.vue'),
         name: 'BizOperation',
-        meta: { title: '经营数据', icon: 'data-line', noCache: false }
+        meta: { title: '经营数据', icon: 'chart', noCache: false }
       }
     ]
   },
   {
-    path: '/cockpit',
+    path: '/dashboard',
     component: Layout,
-    redirect: '/cockpit/index',
-    permissions: ['biz:cockpit:view'],
+    redirect: '/dashboard/index',
+    permissions: ['biz:dashboard:view'],
+    meta: { title: '仪表盘', icon: 'dashboard', noCache: false },
     children: [
       {
         path: 'index',
-        component: () => import('@/views/biz/cockpit/index.vue'),
-        name: 'BizCockpit',
-        meta: { title: '战略驾驶舱', icon: 'pie-chart', noCache: false }
-      },
-      {
-        path: 'dashboard',
-        component: () => import('@/views/cockpit/dashboard.vue'),
-        name: 'BizCockpitDashboard',
-        meta: { title: '数据驾驶舱（大屏）', activeMenu: '/cockpit/index', noCache: false }
+        component: () => import('@/views/dashboard/dashboard.vue'),
+        name: 'BizDashboard',
+        meta: { title: '仪表盘', icon: 'dashboard', noCache: false, activeMenu: '/dashboard' }
       }
     ]
-  },
-  {
-    // v3.3 路线 C：独立全屏投放路由（demo1 同款 /screen）
-    path: '/cockpit/screen',
-    component: () => import('@/views/cockpit/dashboard.vue'),
-    name: 'BizCockpitScreen',
-    hidden: true,
-    permissions: ['biz:cockpit:view'],
-    meta: { title: '大屏投放', noCache: false, fullscreen: true }
   }
 ] // eslint-disable-line
 
