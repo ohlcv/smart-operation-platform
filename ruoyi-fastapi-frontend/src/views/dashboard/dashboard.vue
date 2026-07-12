@@ -161,7 +161,7 @@
 
 <script setup>
 /**
- * 仪表盘（v3.11 双路由共用 + 营收趋势省份联动修正）
+ * 仪表盘（v3.12 双路由共用 + KPI 卡对齐 SRS B1-01 + 营收趋势省份联动）
  *
  * 两种形态：
  * - 默认：路由 `/dashboard` → `/dashboard/index`，嵌 Layout（左侧菜单 + 顶部 navbar + Tags View + 中间区）
@@ -177,9 +177,13 @@
  *
  * 布局：DataScreen 风格（demo1 同款）
  * - 顶部标题栏（中文标题 + 英文副标题 + 在线状态 + 实时时钟 + 全屏切换）
- * - 三栏分栏：左 26% KPI + 营收月度趋势 YTD / 中央 flex:1 地图 / 右 26% 审批跑马灯 + AI 大脑
+ * - 三栏分栏：左 26% 9 KPI 卡（3 财务 + 6 合同运营）+ 营收月度趋势 YTD / 中央 flex:1 地图 / 右 26% 审批跑马灯 + AI 大脑
  * - 省份联动：点击地图省份 → KPI / 营收趋势 / 状态分布 / Top10 全部按 province 过滤
  *   - v3.11：revenue_trend 也支持 province（DAO.trend_revenue 改：province 非空 → biz_contract.amount 按 sign_date 月份聚合；province 为空 → biz_operation.revenue 手工录入）
+ *   - v3.12：KPI 卡 6 → 9，**前 3 张对齐 SRS B1-01 P0「营收/毛利/订单数」**（operationRevenue/operationGrossProfit/operationContractCount）
+ *     + 后 6 张保留合同运营视角（合同总数/审批中/已通过/本月合同金额/待我审批/待开发票）。
+ *     后端字段 `customerTotal/channelTotal/contractMonthNew/contractRejected` v3.12 暂不上卡，避免 12+ 张视觉拥挤；
+ *     `operationGrossProfit` 省份模式 v3.12 简化返回 0（v3.13 接 cost 列后重算）
  * - AI 大脑：dome 同款 6 维雷达 + summary 一句话 + 风险/建议双列分栏卡片
  *
  * 数据源：
@@ -567,30 +571,31 @@ onBeforeUnmount(() => {
   }
 }
 
-/* KPI */
+/* KPI v3.12: 9 张卡 3 列布局 */
 .metrics {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
   animation: flipIn 0.6s ease;
 }
 @keyframes flipIn { from { transform: rotateX(90deg); opacity: 0 } to { transform: rotateX(0); opacity: 1 } }
 .metric {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 6px;
   background: rgba(6, 20, 46, 0.6);
   border: 1px solid rgba(28, 155, 230, 0.2);
   border-radius: 8px;
-  padding: 12px;
+  padding: 10px 8px;
 }
-.metric-ico { font-size: 24px; }
-.metric-label { font-size: 12px; color: #7fa8d0; }
+.metric-ico { font-size: 18px; }
+.metric-label { font-size: 11px; color: #7fa8d0; }
 .metric-value {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 800;
-  margin-top: 4px;
   font-variant-numeric: tabular-nums;
+  word-break: break-all;
+  line-height: 1.15;
 }
 
 /* 跑马灯 */
