@@ -1,751 +1,805 @@
 <template>
-  <div>
-    <AConfigProvider
-      :theme="{
-        algorithm: settingsStore.isDark
-          ? theme.darkAlgorithm
-          : theme.defaultAlgorithm,
-      }"
-    >
-      <div class="pageHeaderContent">
-        <div class="avatar">
-          <a-avatar size="large" :src="currentUser.avatar" />
-        </div>
-        <div class="content">
-          <div class="contentTitle">
-            早安，
-            {{ currentUser.name }}
-            ，祝你开心每一天！
-          </div>
-          <div>{{ currentUser.title }} |{{ currentUser.group }}</div>
-        </div>
-        <div class="extraContent">
-          <div class="statItem">
-            <a-statistic title="项目数" :value="56" />
-          </div>
-          <div class="statItem">
-            <a-statistic title="团队内排名" :value="8" suffix="/ 24" />
-          </div>
-          <div class="statItem">
-            <a-statistic title="项目访问" :value="2223" />
-          </div>
-        </div>
-      </div>
-
-      <div style="padding: 10px">
-        <a-row :gutter="24">
-          <a-col :xl="16" :lg="24" :md="24" :sm="24" :xs="24">
-            <a-card
-              class="projectList"
-              :style="{ marginBottom: '24px' }"
-              title="进行中的项目"
-              :bordered="false"
-              :loading="false"
-              :body-style="{ padding: 0 }"
-            >
-              <template #extra>
-                <a href="">
-                  <span style="color: var(--el-color-primary)">全部项目</span>
-                </a>
-              </template>
-              <a-card-grid
-                v-for="item in projectNotice"
-                :key="item.id"
-                class="projectGrid"
+  <div class="home">
+    <!-- ===== 顶部欢迎卡片 ===== -->
+    <el-card class="welcome-card" shadow="never">
+      <div class="welcome-inner">
+        <div class="left">
+          <el-avatar :size="64" :src="avatar" />
+          <div class="info">
+            <div class="greeting">
+              {{ greeting }}，{{ nickName || name }}
+              <span class="sig">「{{ signature || '专注智能运营每一天' }}」</span>
+            </div>
+            <div class="role-line">
+              <el-tag
+                v-for="r in visibleRoles"
+                :key="r"
+                size="small"
+                type="primary"
+                effect="plain"
+                class="mr-1"
               >
-                <a-card
-                  :body-style="{ padding: 0 }"
-                  style="box-shadow: none"
-                  :bordered="false"
-                >
-                  <a-card-meta :description="item.description" class="w-full">
-                    <template #title>
-                      <div class="cardTitle">
-                        <a-avatar size="small" :src="item.logo" />
-                        <a :href="item.href">
-                          {{ item.title }}
-                        </a>
-                      </div>
-                    </template>
-                  </a-card-meta>
-                  <div class="projectItemContent">
-                    <a :href="item.memberLink">
-                      {{ item.member || "" }}
-                    </a>
-                    <span class="datetime" ml-2 :title="item.updatedAt">
-                      {{ item.updatedAt }}
-                    </span>
-                  </div>
-                </a-card>
-              </a-card-grid>
-            </a-card>
-            <a-card
-              :body-style="{ padding: 0 }"
-              :bordered="false"
-              class="activeCard"
-              title="动态"
-              :loading="false"
-            >
-              <a-list :data-source="activities" class="activitiesList">
-                <template #renderItem="{ item }">
-                  <a-list-item :key="item.id">
-                    <a-list-item-meta>
-                      <template #title>
-                        <span>
-                          <a class="username">{{ item.user.name }}</a
-                          >&nbsp;
-                          <span class="event">
-                            <span>{{ item.template1 }}</span
-                            >&nbsp;
-                            <a href="" style="color: var(--el-color-primary)">
-                              {{ item?.group?.name }} </a
-                            >&nbsp; <span>{{ item.template2 }}</span
-                            >&nbsp;
-                            <a href="" style="color: var(--el-color-primary)">
-                              {{ item?.project?.name }}
-                            </a>
-                          </span>
-                        </span>
-                      </template>
-                      <template #avatar>
-                        <a-avatar :src="item.user.avatar" />
-                      </template>
-                      <template #description>
-                        <span class="datetime" :title="item.updatedAt">
-                          {{ item.updatedAt }}
-                        </span>
-                      </template>
-                    </a-list-item-meta>
-                  </a-list-item>
-                </template>
-              </a-list>
-            </a-card>
-          </a-col>
-          <a-col :xl="8" :lg="24" :md="24" :sm="24" :xs="24">
-            <a-card
-              :style="{ marginBottom: '24px' }"
-              title="快速开始 / 便捷导航"
-              :bordered="false"
-              :body-style="{ padding: 0 }"
-            >
-              <EditableLinkGroup />
-            </a-card>
-            <a-card
-              :style="{ marginBottom: '24px' }"
-              :bordered="false"
-              title="XX 指数"
-            >
-              <div class="chart">
-                <div ref="radarContainer" />
-              </div>
-            </a-card>
-            <a-card
-              :body-style="{ paddingTop: '12px', paddingBottom: '12px' }"
-              :bordered="false"
-              title="团队"
-            >
-              <div class="members">
-                <a-row :gutter="48">
-                  <a-col
-                    v-for="item in projectNotice"
-                    :key="`members-item-${item.id}`"
-                    :span="12"
-                  >
-                    <a :href="item.href">
-                      <a-avatar :src="item.logo" size="small" />
-                      <span class="member">{{ item.member }}</span>
-                    </a>
-                  </a-col>
-                </a-row>
-              </div>
-            </a-card>
-          </a-col>
-        </a-row>
+                {{ roleLabel(r) }}
+              </el-tag>
+              <span class="meta">{{ today }} {{ weekday }} · 智能运营平台 v{{ appVersion }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="right">
+          <div class="kpi-cell" @click="$router.push('/biz/contract')">
+            <div class="kpi-label">合同总数</div>
+            <div class="kpi-value">{{ kpi.contractTotal ?? '--' }}</div>
+            <div class="kpi-sub">本月新增 {{ kpi.contractMonthNew ?? 0 }}</div>
+          </div>
+          <div class="kpi-cell" @click="$router.push('/biz/approval')">
+            <div class="kpi-label">待我审批</div>
+            <div class="kpi-value text-warning">{{ kpi.approvalPending ?? '--' }}</div>
+            <div class="kpi-sub">审批中 {{ kpi.contractPending ?? 0 }}</div>
+          </div>
+          <div class="kpi-cell" @click="$router.push('/biz/customer')">
+            <div class="kpi-label">客户总数</div>
+            <div class="kpi-value">{{ kpi.customerTotal ?? '--' }}</div>
+            <div class="kpi-sub">渠道 {{ kpi.channelTotal ?? 0 }}</div>
+          </div>
+          <div class="kpi-cell" @click="$router.push('/biz/finance')">
+            <div class="kpi-label">本月合同金额</div>
+            <div class="kpi-value text-success">
+              ¥{{ formatMoney(kpi.contractMonthAmount) }}
+            </div>
+            <div class="kpi-sub">已通过 {{ kpi.contractApproved ?? 0 }} 笔</div>
+          </div>
+        </div>
       </div>
-    </AConfigProvider>
+    </el-card>
+
+    <!-- ===== 主体两栏 ===== -->
+    <el-row :gutter="16" class="mt-3">
+      <!-- 左主区 16 列 -->
+      <el-col :xs="24" :sm="24" :md="24" :lg="16" :xl="16">
+        <!-- 待我审批 -->
+        <el-card class="box-card" shadow="never" v-loading="loadingApproval">
+          <template #header>
+            <div class="card-header">
+              <span class="title">
+                <el-icon><Bell /></el-icon>
+                待我审批
+                <el-badge
+                  v-if="pendingList.length > 0"
+                  :value="pendingList.length"
+                  class="ml-1"
+                  type="warning"
+                />
+              </span>
+              <el-link
+                type="primary"
+                :underline="false"
+                @click="$router.push('/biz/approval')"
+              >前往审批中心 →</el-link>
+            </div>
+          </template>
+          <el-table
+            v-if="pendingList.length > 0"
+            :data="pendingList"
+            stripe
+            size="default"
+            :row-style="{ cursor: 'pointer' }"
+            @row-click="goApproval"
+          >
+            <el-table-column prop="contractNo" label="合同编号" width="170" />
+            <el-table-column prop="title" label="合同标题" show-overflow-tooltip min-width="160" />
+            <el-table-column prop="currentStep" label="节点" width="80" align="center">
+              <template #default="{ row }">
+                <el-tag size="small" effect="plain">第 {{ row.currentStep }} 级</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="submitUserName" label="提交人" width="100" show-overflow-tooltip />
+            <el-table-column prop="submitTime" label="提交时间" width="160" />
+            <el-table-column prop="amount" label="金额" width="120" align="right">
+              <template #default="{ row }">
+                <span class="money">¥{{ formatMoney(row.amount) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="80" align="center" fixed="right">
+              <template #default="{ row }">
+                <el-link type="primary" :underline="false" @click.stop="goApproval(row)">
+                  审批
+                </el-link>
+              </template>
+            </el-table-column>
+          </el-table>
+          <el-empty
+            v-else-if="!loadingApproval"
+            description="暂无待审批合同"
+            :image-size="80"
+          />
+        </el-card>
+
+        <!-- 最近合同 -->
+        <el-card class="box-card mt-3" shadow="never" v-loading="loadingContract">
+          <template #header>
+            <div class="card-header">
+              <span class="title">
+                <el-icon><Document /></el-icon>
+                最近合同
+              </span>
+              <el-link
+                type="primary"
+                :underline="false"
+                @click="$router.push('/biz/contract')"
+              >前往合同管理 →</el-link>
+            </div>
+          </template>
+          <el-table
+            v-if="recentContracts.length > 0"
+            :data="recentContracts"
+            stripe
+            size="default"
+          >
+            <el-table-column prop="contractNo" label="合同编号" width="170" />
+            <el-table-column prop="title" label="合同标题" show-overflow-tooltip min-width="160" />
+            <el-table-column prop="customerName" label="客户" width="120" show-overflow-tooltip />
+            <el-table-column prop="amount" label="金额" width="120" align="right">
+              <template #default="{ row }">
+                <span class="money">¥{{ formatMoney(row.amount) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="status" label="状态" width="100" align="center">
+              <template #default="{ row }">
+                <el-tag size="small" :type="statusType(row.status)">
+                  {{ statusLabel(row.status) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="createTime" label="创建时间" width="160" />
+          </el-table>
+          <el-empty
+            v-else-if="!loadingContract"
+            description="暂无合同数据"
+            :image-size="80"
+          />
+        </el-card>
+      </el-col>
+
+      <!-- 右栏 8 列 -->
+      <el-col :xs="24" :sm="24" :md="24" :lg="8" :xl="8">
+        <!-- 快速导航 -->
+        <el-card class="box-card" shadow="never">
+          <template #header>
+            <div class="card-header">
+              <span class="title">
+                <el-icon><Grid /></el-icon>
+                快速导航
+              </span>
+            </div>
+          </template>
+          <div class="quick-grid">
+            <div
+              v-for="item in quickEntries"
+              :key="item.path"
+              class="quick-cell"
+              @click="$router.push(item.path)"
+            >
+              <div class="quick-icon" :style="{ background: item.bg }">
+                <el-icon :size="20" color="#fff">
+                  <component :is="item.icon" />
+                </el-icon>
+              </div>
+              <div class="quick-label">{{ item.title }}</div>
+            </div>
+          </div>
+        </el-card>
+
+        <!-- 我的工作台 -->
+        <el-card class="box-card mt-3" shadow="never">
+          <template #header>
+            <div class="card-header">
+              <span class="title">
+                <el-icon><DataAnalysis /></el-icon>
+                我的工作台
+              </span>
+            </div>
+          </template>
+
+          <!-- 待我处理 -->
+          <div class="ws-section">
+            <div class="ws-section-label">待我处理</div>
+            <div class="ws-grid">
+              <div class="ws-cell" @click="$router.push('/biz/approval')">
+                <div class="ws-num text-warning">{{ kpi.approvalPending ?? '--' }}</div>
+                <div class="ws-name">待我审批</div>
+              </div>
+              <div class="ws-cell" @click="$router.push('/biz/contract')">
+                <div class="ws-num">{{ kpi.contractTotal ?? '--' }}</div>
+                <div class="ws-name">合同总数</div>
+              </div>
+              <div class="ws-cell" @click="$router.push('/biz/customer')">
+                <div class="ws-num">{{ kpi.customerTotal ?? '--' }}</div>
+                <div class="ws-name">客户总数</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 本月业务动态 -->
+          <div class="ws-section">
+            <div class="ws-section-label">本月业务动态</div>
+            <ul class="ws-list">
+              <li>
+                <span class="ws-list-label">本月新增合同</span>
+                <span class="ws-list-value">{{ kpi.contractMonthNew ?? 0 }} 笔</span>
+              </li>
+              <li>
+                <span class="ws-list-label">审批中</span>
+                <span class="ws-list-value text-warning">{{ kpi.contractPending ?? 0 }} 笔</span>
+              </li>
+              <li>
+                <span class="ws-list-label">已通过</span>
+                <span class="ws-list-value text-success">{{ kpi.contractApproved ?? 0 }} 笔</span>
+              </li>
+              <li>
+                <span class="ws-list-label">已驳回</span>
+                <span class="ws-list-value text-danger">{{ kpi.contractRejected ?? 0 }} 笔</span>
+              </li>
+              <li>
+                <span class="ws-list-label">本月合同金额</span>
+                <span class="ws-list-value text-success">¥{{ formatMoney(kpi.contractMonthAmount) }}</span>
+              </li>
+            </ul>
+          </div>
+
+          <!-- 快捷操作 -->
+          <div class="ws-section">
+            <div class="ws-section-label">快捷操作</div>
+            <div class="ws-actions">
+              <el-button type="primary" plain size="small" @click="$router.push('/biz/contract')">
+                <el-icon><Plus /></el-icon>
+                新建合同
+              </el-button>
+              <el-button type="success" plain size="small" @click="$router.push('/biz/customer')">
+                <el-icon><Plus /></el-icon>
+                新增客户
+              </el-button>
+              <el-button type="warning" plain size="small" @click="$router.push('/biz/channel')">
+                <el-icon><Plus /></el-icon>
+                新增渠道
+              </el-button>
+              <el-button size="small" @click="$router.push('/biz/operation')">
+                <el-icon><Plus /></el-icon>
+                录入经营
+              </el-button>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
   </div>
 </template>
 
-<script>
-import {
-  Statistic,
-  Row,
-  Col,
-  Card,
-  CardGrid,
-  CardMeta,
-  List,
-  ListItem,
-  ListItemMeta,
-  Avatar,
-  ConfigProvider,
-  theme,
-} from "ant-design-vue";
-import "ant-design-vue/dist/reset.css";
-
-export default {
-  components: {
-    AStatistic: Statistic,
-    ARow: Row,
-    ACol: Col,
-    ACard: Card,
-    ACardGrid: CardGrid,
-    ACardMeta: CardMeta,
-    AList: List,
-    AListItem: ListItem,
-    AListItemMeta: ListItemMeta,
-    AAvatar: Avatar,
-    AConfigProvider: ConfigProvider,
-  },
-};
-</script>
-
 <script setup>
-import { Radar } from "@antv/g2plot";
-import EditableLinkGroup from "./editable-link-group.vue";
-import useSettingsStore from "@/store/modules/settings";
-
-const settingsStore = useSettingsStore();
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { storeToRefs } from 'pinia'
+import {
+  Bell, Document, Grid, DataAnalysis,
+  PieChart, Check, User, Share, Tickets, Wallet, Plus,
+} from '@element-plus/icons-vue'
+import useUserStore from '@/store/modules/user'
+import { getDashboardOverview } from '@/api/biz/dashboard'
+import { listApprovals } from '@/api/biz/approval'
+import { listContracts } from '@/api/biz/contract'
 
 defineOptions({
-  name: "DashBoard",
-});
+  name: 'Index',
+})
 
-const currentUser = {
-  avatar: "https://gw.alipayobjects.com/zos/rmsportal/BiazfanxmamNRoxxVxka.png",
-  name: "亲爱的",
-  userid: "00000001",
-  email: "antdesign@alipay.com",
-  signature: "海纳百川，有容乃大",
-  title: "交互专家",
-  group: "蚂蚁金服－某某某事业群－某某平台部－某某技术部－UED",
-};
+const router = useRouter()
+const userStore = useUserStore()
+const { avatar, name, nickName, signature, roles: userRoles } = storeToRefs(userStore)
 
-const projectNotice = [
-  {
-    id: "xxx1",
-    title: "Alipay",
-    logo: "https://gw.alipayobjects.com/zos/rmsportal/WdGqmHpayyMjiEhcKoVE.png",
-    description: "那是一种内在的东西，他们到达不了，也无法触及的",
-    updatedAt: "几秒前",
-    member: "科学搬砖组",
-    href: "",
-    memberLink: "",
-  },
-  {
-    id: "xxx2",
-    title: "Angular",
-    logo: "https://gw.alipayobjects.com/zos/rmsportal/zOsKZmFRdUtvpqCImOVY.png",
-    description: "希望是一个好东西，也许是最好的，好东西是不会消亡的",
-    updatedAt: "6 年前",
-    member: "全组都是亲爱的",
-    href: "",
-    memberLink: "",
-  },
-  {
-    id: "xxx3",
-    title: "Ant Design",
-    logo: "https://gw.alipayobjects.com/zos/rmsportal/dURIMkkrRFpPgTuzkwnB.png",
-    description: "城镇中有那么多的酒馆，她却偏偏走进了我的酒馆",
-    updatedAt: "几秒前",
-    member: "中二少女团",
-    href: "",
-    memberLink: "",
-  },
-  {
-    id: "xxx4",
-    title: "Ant Design Pro",
-    logo: "https://gw.alipayobjects.com/zos/rmsportal/sfjbOqnsXXJgNCjCzDBL.png",
-    description: "那时候我只会想自己想要什么，从不想自己拥有什么",
-    updatedAt: "6 年前",
-    member: "程序员日常",
-    href: "",
-    memberLink: "",
-  },
-  {
-    id: "xxx5",
-    title: "Bootstrap",
-    logo: "https://gw.alipayobjects.com/zos/rmsportal/siCrBXXhmvTQGWPNLBow.png",
-    description: "凛冬将至",
-    updatedAt: "6 年前",
-    member: "高逼格设计天团",
-    href: "",
-    memberLink: "",
-  },
-  {
-    id: "xxx6",
-    title: "React",
-    logo: "https://gw.alipayobjects.com/zos/rmsportal/kZzEzemZyKLKFsojXItE.png",
-    description: "生命就像一盒巧克力，结果往往出人意料",
-    updatedAt: "6 年前",
-    member: "骗你来学计算机",
-    href: "",
-    memberLink: "",
-  },
-];
+const visibleRoles = computed(() => (userRoles.value || []).slice(0, 3))
 
-const activities = [
-  {
-    id: "trend-1",
-    updatedAt: "几秒前",
-    user: {
-      name: "曲丽丽",
-      avatar:
-        "https://gw.alipayobjects.com/zos/rmsportal/BiazfanxmamNRoxxVxka.png",
-    },
-    group: {
-      name: "高逼格设计天团",
-      link: "http://github.com/",
-    },
-    project: {
-      name: "六月迭代",
-      link: "http://github.com/",
-    },
-    template1: "在",
-    template2: "新建项目",
-  },
-  {
-    id: "trend-2",
-    updatedAt: "几秒前",
-    user: {
-      name: "付小小",
-      avatar:
-        "https://gw.alipayobjects.com/zos/rmsportal/cnrhVkzwxjPwAaCfPbdc.png",
-    },
-    group: {
-      name: "高逼格设计天团",
-      link: "http://github.com/",
-    },
-    project: {
-      name: "六月迭代",
-      link: "http://github.com/",
-    },
-    template1: "在",
-    template2: "新建项目",
-  },
-  {
-    id: "trend-3",
-    updatedAt: "几秒前",
-    user: {
-      name: "林东东",
-      avatar:
-        "https://gw.alipayobjects.com/zos/rmsportal/gaOngJwsRYRaVAuXXcmB.png",
-    },
-    group: {
-      name: "中二少女团",
-      link: "http://github.com/",
-    },
-    project: {
-      name: "六月迭代",
-      link: "http://github.com/",
-    },
-    template1: "在",
-    template2: "新建项目",
-  },
-  {
-    id: "trend-4",
-    updatedAt: "几秒前",
-    user: {
-      name: "周星星",
-      avatar:
-        "https://gw.alipayobjects.com/zos/rmsportal/WhxKECPNujWoWEFNdnJE.png",
-    },
-    group: {
-      name: "5 月日常迭代",
-      link: "http://github.com/",
-    },
-    template1: "将",
-    template2: "更新至已发布状态",
-  },
-  {
-    id: "trend-5",
-    updatedAt: "几秒前",
-    user: {
-      name: "朱偏右",
-      avatar:
-        "https://gw.alipayobjects.com/zos/rmsportal/ubnKSIfAJTxIgXOKlciN.png",
-    },
-    group: {
-      name: "工程效能",
-      link: "http://github.com/",
-    },
-    project: {
-      name: "留言",
-      link: "http://github.com/",
-    },
-    template1: "在",
-    template2: "发布了",
-  },
-  {
-    id: "trend-6",
-    updatedAt: "几秒前",
-    user: {
-      name: "乐哥",
-      avatar:
-        "https://gw.alipayobjects.com/zos/rmsportal/jZUIxmJycoymBprLOUbT.png",
-    },
-    group: {
-      name: "程序员日常",
-      link: "http://github.com/",
-    },
-    project: {
-      name: "品牌迭代",
-      link: "http://github.com/",
-    },
-    template1: "在",
-    template2: "新建项目",
-  },
-];
+// ====== 时间 / 问候 ======
+const today = computed(() => {
+  const d = new Date()
+  const pad = (n) => (n < 10 ? '0' + n : '' + n)
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+})
 
-const radarContainer = ref();
-const radarData = [
-  {
-    name: "个人",
-    label: "引用",
-    value: 10,
-  },
-  {
-    name: "个人",
-    label: "口碑",
-    value: 8,
-  },
-  {
-    name: "个人",
-    label: "产量",
-    value: 4,
-  },
-  {
-    name: "个人",
-    label: "贡献",
-    value: 5,
-  },
-  {
-    name: "个人",
-    label: "热度",
-    value: 7,
-  },
-  {
-    name: "团队",
-    label: "引用",
-    value: 3,
-  },
-  {
-    name: "团队",
-    label: "口碑",
-    value: 9,
-  },
-  {
-    name: "团队",
-    label: "产量",
-    value: 6,
-  },
-  {
-    name: "团队",
-    label: "贡献",
-    value: 3,
-  },
-  {
-    name: "团队",
-    label: "热度",
-    value: 1,
-  },
-  {
-    name: "部门",
-    label: "引用",
-    value: 4,
-  },
-  {
-    name: "部门",
-    label: "口碑",
-    value: 1,
-  },
-  {
-    name: "部门",
-    label: "产量",
-    value: 6,
-  },
-  {
-    name: "部门",
-    label: "贡献",
-    value: 5,
-  },
-  {
-    name: "部门",
-    label: "热度",
-    value: 7,
-  },
-];
-let radar;
+const weekday = computed(() => {
+  const cn = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+  return cn[new Date().getDay()]
+})
+
+const greeting = computed(() => {
+  const h = new Date().getHours()
+  if (h < 6) return '凌晨好'
+  if (h < 9) return '早安'
+  if (h < 12) return '上午好'
+  if (h < 14) return '中午好'
+  if (h < 18) return '下午好'
+  if (h < 22) return '晚上好'
+  return '夜深了'
+})
+
+// ====== 角色 ======
+function roleLabel(roleKey) {
+  const map = {
+    admin: '超级管理员',
+    common: '普通用户',
+    biz_handler: '业务经办',
+    biz_reviewer: '业务复核',
+    risk_auditor: '风控审核',
+    finance_h: '财务经办',
+    finance_r: '财务复核',
+    scm_director: '供管负责人',
+    invest_d: '投资负责人',
+  }
+  return map[roleKey] || roleKey
+}
+
+// 项目当前版本（顶部欢迎卡片展示，与开发台账对齐）
+const appVersion = '3.10'
+
+// ====== 顶部 4 个 KPI（从 dashboard.kpi 取） ======
+const kpi = ref({
+  contractTotal: 0,
+  contractMonthNew: 0,
+  contractPending: 0,
+  contractApproved: 0,
+  contractRejected: 0,
+  contractMonthAmount: 0,
+  customerTotal: 0,
+  channelTotal: 0,
+  invoicePending: 0,
+  approvalPending: 0,
+})
+
+async function loadKpi() {
+  try {
+    const res = await getDashboardOverview()
+    const data = res?.data ?? res
+    if (data?.kpi) {
+      kpi.value = {
+        ...kpi.value,
+        contractTotal: data.kpi.contractTotal ?? 0,
+        contractMonthNew: data.kpi.contractMonthNew ?? 0,
+        contractPending: data.kpi.contractPending ?? 0,
+        contractApproved: data.kpi.contractApproved ?? 0,
+        contractRejected: data.kpi.contractRejected ?? 0,
+        contractMonthAmount: data.kpi.contractMonthAmount ?? 0,
+        customerTotal: data.kpi.customerTotal ?? 0,
+        channelTotal: data.kpi.channelTotal ?? 0,
+        invoicePending: data.kpi.invoicePending ?? 0,
+        approvalPending: data.kpi.approvalPending ?? 0,
+      }
+    }
+  } catch (e) {
+    console.warn('[Index] loadKpi failed:', e)
+  }
+}
+
+// ====== 待我审批 ======
+const pendingList = ref([])
+const loadingApproval = ref(false)
+async function loadPending() {
+  loadingApproval.value = true
+  try {
+    const res = await listApprovals({ scope: 'pending', pageNum: 1, pageSize: 5 })
+    const data = res?.data ?? res
+    pendingList.value = data?.rows ?? data?.items ?? []
+  } catch (e) {
+    console.warn('[Index] loadPending failed:', e)
+    pendingList.value = []
+  } finally {
+    loadingApproval.value = false
+  }
+}
+
+// ====== 最近合同 ======
+const recentContracts = ref([])
+const loadingContract = ref(false)
+async function loadRecentContracts() {
+  loadingContract.value = true
+  try {
+    const res = await listContracts({ pageNum: 1, pageSize: 5, orderBy: 'createTime', orderDirection: 'desc' })
+    const data = res?.data ?? res
+    recentContracts.value = data?.rows ?? data?.items ?? []
+  } catch (e) {
+    console.warn('[Index] loadRecentContracts failed:', e)
+    recentContracts.value = []
+  } finally {
+    loadingContract.value = false
+  }
+}
+
+// ====== 快速导航 ======
+const quickEntries = [
+  { title: '仪表盘', path: '/dashboard', icon: PieChart, bg: 'linear-gradient(135deg, #409eff, #2c7be5)' },
+  { title: '审批中心', path: '/biz/approval', icon: Check, bg: 'linear-gradient(135deg, #67c23a, #3eaa10)' },
+  { title: '合同管理', path: '/biz/contract', icon: Document, bg: 'linear-gradient(135deg, #909399, #606266)' },
+  { title: '客户档案', path: '/biz/customer', icon: User, bg: 'linear-gradient(135deg, #e6a23c, #c97c1f)' },
+  { title: '渠道管理', path: '/biz/channel', icon: Share, bg: 'linear-gradient(135deg, #f56c6c, #d14545)' },
+  { title: '发票管理', path: '/biz/invoice', icon: Tickets, bg: 'linear-gradient(135deg, #9b59b6, #7d3cab)' },
+  { title: '财务流水', path: '/biz/finance', icon: Wallet, bg: 'linear-gradient(135deg, #1abc9c, #16a085)' },
+  { title: '经营数据', path: '/biz/operation', icon: DataAnalysis, bg: 'linear-gradient(135deg, #ff7e67, #e85d4d)' },
+]
+
+// ====== 跳转 ======
+function goApproval(row) {
+  router.push({ path: '/biz/approval', query: { contractId: row.contractId || row.id } })
+}
+
+// ====== 工具 ======
+function formatMoney(v) {
+  if (v == null || v === '') return '0.00'
+  const n = Number(v)
+  if (Number.isNaN(n)) return '0.00'
+  return n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+const STATUS_MAP = {
+  draft: { label: '草稿', type: 'info' },
+  pending: { label: '审批中', type: 'warning' },
+  approved: { label: '已通过', type: 'success' },
+  rejected: { label: '已驳回', type: 'danger' },
+}
+function statusLabel(s) {
+  return STATUS_MAP[s]?.label || s || '-'
+}
+function statusType(s) {
+  return STATUS_MAP[s]?.type || 'info'
+}
+
+// ====== 生命周期 ======
 onMounted(() => {
-  radar = new Radar(radarContainer.value, {
-    data: radarData,
-    xField: "label",
-    yField: "value",
-    seriesField: "name",
-    point: {
-      size: 4,
-    },
-    legend: {
-      layout: "horizontal",
-      position: "bottom",
-    },
-  });
-  radar.render();
-});
-
-onBeforeUnmount(() => {
-  radar?.destroy?.();
-});
+  loadKpi()
+  loadPending()
+  loadRecentContracts()
+})
 </script>
 
-<style scoped lang="less">
-.textOverflow() {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  word-break: break-all;
+<style scoped lang="scss">
+.home {
+  padding: 0;
 }
 
-// mixins for clearfix
-// ------------------------
-.clearfix() {
-  zoom: 1;
-  &::before,
-  &::after {
-    display: table;
-    content: " ";
-  }
-  &::after {
-    clear: both;
-    height: 0;
-    font-size: 0;
-    visibility: hidden;
+/* ====== 顶部欢迎卡片 ====== */
+.welcome-card {
+  background: linear-gradient(
+    135deg,
+    var(--el-color-primary-light-7) 0%,
+    var(--el-color-primary-light-9) 100%
+  );
+  border: 1px solid var(--el-color-primary-light-5);
+
+  :deep(.el-card__body) {
+    padding: 20px 24px;
   }
 }
 
-.activitiesList {
-  padding: 0 24px 8px 24px;
-  .username {
-    color: var(--el-text-color-regular);
-  }
-  .event {
-    font-weight: normal;
-  }
+html.dark .welcome-card {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--el-color-primary) 22%, var(--el-bg-color)) 0%,
+    var(--el-bg-color) 100%
+  );
+  border: 1px solid var(--el-color-primary-dark-2);
 }
 
-.pageHeaderContent {
+.welcome-inner {
   display: flex;
-  padding: 12px;
-  margin-bottom: 24px;
-  box-shadow: var(--el-box-shadow-light);
-  .avatar {
-    flex: 0 1 72px;
-    & > span {
-      display: block;
-      width: 72px;
-      height: 72px;
-      border-radius: 72px;
-    }
-  }
-  .content {
-    position: relative;
-    top: 4px;
-    flex: 1 1 auto;
-    margin-left: 24px;
-    color: var(--el-text-color-secondary);
-    line-height: 22px;
-    .contentTitle {
-      margin-bottom: 12px;
-      color: var(--el-text-color-primary);
-      font-weight: 500;
-      font-size: 20px;
-      line-height: 28px;
-    }
-  }
-}
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
 
-.extraContent {
-  .clearfix();
+  .left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex: 1 1 320px;
+    min-width: 280px;
 
-  float: right;
-  white-space: nowrap;
-  .statItem {
-    position: relative;
-    display: inline-block;
-    padding: 0 32px;
-    > p:first-child {
-      margin-bottom: 4px;
-      color: var(--el-text-color-secondary);
-      font-size: 14px;
-      line-height: 22px;
-    }
-    > p {
-      margin: 0;
-      color: var(--el-text-color-primary);
-      font-size: 30px;
-      line-height: 38px;
-      > span {
-        color: var(--el-text-color-secondary);
+    .info {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+
+      .greeting {
         font-size: 20px;
+        font-weight: 600;
+        color: var(--el-text-color-primary);
+        line-height: 28px;
+
+        .sig {
+          margin-left: 8px;
+          font-size: 13px;
+          font-weight: 400;
+          color: var(--el-text-color-secondary);
+          font-style: italic;
+        }
+      }
+
+      .role-line {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 4px;
+
+        .meta {
+          font-size: 12px;
+          color: var(--el-text-color-secondary);
+        }
       }
     }
-    &::after {
-      position: absolute;
-      top: 8px;
-      right: 0;
-      width: 1px;
-      height: 40px;
-      background-color: var(--el-border-color);
-      content: "";
-    }
-    &:last-child {
-      padding-right: 0;
-      &::after {
-        display: none;
+  }
+
+  .right {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+
+    .kpi-cell {
+      cursor: pointer;
+      padding: 4px 20px;
+      min-width: 120px;
+      border-right: 1px dashed var(--el-color-primary-light-5);
+      transition: all 0.2s ease;
+
+      &:last-child {
+        border-right: none;
+      }
+
+      &:hover {
+        transform: translateY(-1px);
+      }
+
+      .kpi-label {
+        font-size: 12px;
+        color: var(--el-text-color-secondary);
+        line-height: 20px;
+      }
+
+      .kpi-value {
+        font-size: 26px;
+        font-weight: 600;
+        color: var(--el-text-color-primary);
+        line-height: 36px;
+        margin-top: 2px;
+
+        &.text-warning {
+          color: var(--el-color-warning);
+        }
+
+        &.text-success {
+          color: var(--el-color-success);
+        }
+      }
+
+      .kpi-sub {
+        font-size: 11px;
+        color: var(--el-text-color-placeholder);
+        line-height: 16px;
+        margin-top: 2px;
       }
     }
   }
 }
 
-.members {
-  a {
-    display: block;
-    height: 24px;
-    margin: 12px 0;
-    color: var(--el-text-color-regular);
-    transition: all 0.3s;
-    .textOverflow();
-    .member {
-      margin-left: 12px;
-      font-size: 14px;
-      line-height: 24px;
-      vertical-align: top;
-    }
-    &:hover {
+/* ====== 通用卡片 ====== */
+.box-card {
+  :deep(.el-card__header) {
+    padding: 12px 20px;
+    background: var(--el-fill-color-blank);
+  }
+
+  :deep(.el-card__body) {
+    padding: 16px 20px;
+  }
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  .title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--el-text-color-primary);
+
+    .el-icon {
       color: var(--el-color-primary);
     }
   }
 }
 
-.projectList {
-  :deep(.ant-card-meta-description) {
-    height: 44px;
-    overflow: hidden;
-    color: var(--el-text-color-secondary);
-    line-height: 22px;
-  }
-  .cardTitle {
-    font-size: 0;
-    a {
-      display: inline-block;
-      height: 24px;
-      margin-left: 12px;
-      color: var(--el-text-color-primary);
-      font-size: 14px;
-      line-height: 24px;
-      vertical-align: top;
-      &:hover {
-        color: var(--el-color-primary);
-      }
-    }
-  }
-  .projectGrid {
-    width: 33.33%;
-  }
-  .projectItemContent {
+.money {
+  font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+  font-weight: 500;
+  color: var(--el-color-success);
+}
+
+/* ====== 快速导航 ====== */
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+
+  .quick-cell {
     display: flex;
-    flex-basis: 100%;
-    height: 20px;
-    margin-top: 8px;
-    overflow: hidden;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 14px 4px;
+    cursor: pointer;
+    border-radius: 8px;
+    background: var(--el-fill-color-light);
+    transition: all 0.2s ease;
+
+    &:hover {
+      transform: translateY(-2px);
+      background: var(--el-fill-color);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    html.dark &:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    }
+
+    .quick-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    }
+
+    .quick-label {
+      font-size: 12px;
+      color: var(--el-text-color-regular);
+      line-height: 16px;
+    }
+  }
+}
+
+@media (max-width: 1200px) {
+  .quick-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ====== 我的工作台 ====== */
+.ws-section {
+  padding: 12px 0;
+
+  & + .ws-section {
+    border-top: 1px dashed var(--el-border-color-lighter);
+  }
+
+  .ws-section-label {
     font-size: 12px;
+    color: var(--el-text-color-secondary);
     line-height: 20px;
-    .textOverflow();
-    a {
-      display: inline-block;
-      flex: 1 1 0;
+    margin-bottom: 10px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+  }
+}
+
+.ws-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+
+  .ws-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 12px 4px;
+    cursor: pointer;
+    border-radius: 6px;
+    background: var(--el-fill-color-light);
+    transition: all 0.2s ease;
+
+    &:hover {
+      transform: translateY(-1px);
+      background: var(--el-fill-color);
+    }
+
+    .ws-num {
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--el-text-color-primary);
+      line-height: 28px;
+
+      &.text-warning {
+        color: var(--el-color-warning);
+      }
+    }
+
+    .ws-name {
+      font-size: 11px;
       color: var(--el-text-color-secondary);
-      .textOverflow();
-      &:hover {
-        color: var(--el-color-primary);
+      line-height: 16px;
+    }
+  }
+}
+
+.ws-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    font-size: 13px;
+    color: var(--el-text-color-regular);
+
+    .ws-list-label {
+      color: var(--el-text-color-secondary);
+    }
+
+    .ws-list-value {
+      font-weight: 500;
+      color: var(--el-text-color-primary);
+
+      &.text-warning {
+        color: var(--el-color-warning);
       }
-    }
-    .datetime {
-      flex: 0 0 auto;
-      float: right;
-      color: var(--el-text-color-placeholder);
-    }
-  }
-}
 
-.datetime {
-  color: var(--el-text-color-placeholder);
-}
+      &.text-success {
+        color: var(--el-color-success);
+      }
 
-@media screen and (max-width: 1200px) and (min-width: 992px) {
-  .activeCard {
-    margin-bottom: 24px;
-  }
-  .members {
-    margin-bottom: 0;
-  }
-  .extraContent {
-    margin-left: -44px;
-    .statItem {
-      padding: 0 16px;
-    }
-  }
-}
-
-@media screen and (max-width: 992px) {
-  .activeCard {
-    margin-bottom: 24px;
-  }
-  .members {
-    margin-bottom: 0;
-  }
-  .extraContent {
-    float: none;
-    margin-right: 0;
-    .statItem {
-      padding: 0 16px;
-      text-align: left;
-      &::after {
-        display: none;
+      &.text-danger {
+        color: var(--el-color-danger);
       }
     }
   }
 }
 
-@media screen and (max-width: 768px) {
-  .extraContent {
-    margin-left: -16px;
-  }
-  .projectList {
-    .projectGrid {
-      width: 50%;
-    }
+.ws-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+
+  .el-button {
+    width: 100%;
+    margin-left: 0;
   }
 }
 
-@media screen and (max-width: 576px) {
-  .pageHeaderContent {
-    display: block;
-    .content {
-      margin-left: 0;
-    }
-  }
-  .extraContent {
-    .statItem {
-      float: none;
-    }
-  }
-}
+/* ====== 响应式 ====== */
+@media (max-width: 992px) {
+  .welcome-inner {
+    flex-direction: column;
+    align-items: flex-start;
 
-@media screen and (max-width: 480px) {
-  .projectList {
-    .projectGrid {
+    .right {
       width: 100%;
+      justify-content: space-between;
+
+      .kpi-cell {
+        flex: 1;
+        padding: 4px 8px;
+        border-right: 1px dashed var(--el-color-primary-light-5);
+
+        .kpi-value {
+          font-size: 22px;
+        }
+      }
     }
   }
 }

@@ -17,7 +17,9 @@ const useUserStore = defineStore(
       roles: [],
       permissions: [],
       role: '',
-      isSuperuser: false
+      isSuperuser: false,
+      // 电子签名 base64 data URI（v2.9 起审批快照依赖，v3.11 首页展示）
+      signature: ''
     }),
     actions: {
       // 登录
@@ -57,6 +59,7 @@ const useUserStore = defineStore(
             this.avatar = avatar
             this.role = user.role || ''
             this.isSuperuser = !!user.isSuperuser
+            this.signature = user.signature || ''
             /* 初始密码提示 */
             if(res.isDefaultModifyPwd) {
               ElMessageBox.confirm('您的密码还是初始密码，请修改密码！',  '安全提示', {  confirmButtonText: '确定',  cancelButtonText: '取消',  type: 'warning' }).then(() => {
