@@ -395,6 +395,43 @@ def upgrade() -> None:
           (3, '2026-07', 'month', NULL, 5200000.00, 3500000.00, 1700000.00, 35, 12, 433333.33, 1, 'admin', NOW(), '当月（含 HT-2026-003 已开票）');
     """)
 
+    # PLACEHOLDER_AI_MENU
+    op.execute("""
+        INSERT IGNORE INTO sys_menu
+          (menu_id, menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+        VALUES
+          (130, 'AI 管理', 0, 14, 'ai', NULL, 1, 0, 'M', '0', '0', '', 'magic-stick', 'admin', NOW(), 'AI 管理目录'),
+          (131, 'AI 模型', 130, 1, 'ai/model', 'ai/model/index', 1, 0, 'C', '0', '0', 'ai:model:list', 'model', 'admin', NOW(), 'AI 模型菜单'),
+          (132, 'AI 对话', 130, 2, 'ai/chat', 'ai/chat/index', 1, 0, 'C', '0', '0', '', 'chat', 'admin', NOW(), 'AI 对话菜单');
+    """)
+
+    # AI 模型 按钮 5 个
+    op.execute("""
+        INSERT IGNORE INTO sys_menu
+          (menu_id, menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, remark)
+        VALUES
+          (2000, '模型查询', 131, 1, '', '', 1, 0, 'F', '0', '0', 'ai:model:query',  '#', 'admin', NOW(), ''),
+          (2001, '模型新增', 131, 2, '', '', 1, 0, 'F', '0', '0', 'ai:model:add',    '#', 'admin', NOW(), ''),
+          (2002, '模型修改', 131, 3, '', '', 1, 0, 'F', '0', '0', 'ai:model:edit',   '#', 'admin', NOW(), ''),
+          (2003, '模型删除', 131, 4, '', '', 1, 0, 'F', '0', '0', 'ai:model:remove', '#', 'admin', NOW(), ''),
+          (2004, '模型导出', 131, 5, '', '', 1, 0, 'F', '0', '0', 'ai:model:export', '#', 'admin', NOW(), '');
+    """)
+
+    # AI 菜单权限分配（admin 全 8 项；其他角色仅目录+菜单+查询按钮）
+    op.execute("""
+        INSERT IGNORE INTO sys_role_menu (role_id, menu_id) VALUES
+          (1, 130), (1, 131), (1, 132),
+          (1, 2000), (1, 2001), (1, 2002), (1, 2003), (1, 2004),
+          (2, 130), (2, 131), (2, 132), (2, 2000),
+          (3, 130), (3, 131), (3, 132), (3, 2000),
+          (4, 130), (4, 131), (4, 132), (4, 2000),
+          (5, 130), (5, 131), (5, 132), (5, 2000),
+          (6, 130), (6, 131), (6, 132), (6, 2000),
+          (7, 130), (7, 131), (7, 132), (7, 2000),
+          (8, 130), (8, 131), (8, 132), (8, 2000),
+          (9, 130), (9, 131), (9, 132), (9, 2000);
+    """)
+
 
 def downgrade() -> None:
     """downgrade：清空种子数据（按依赖反向）"""
@@ -411,6 +448,8 @@ def downgrade() -> None:
     # sys config
     op.execute("DELETE FROM sys_config;")
     # sys 角色菜单（先清关联，再清角色）
+    op.execute("DELETE FROM sys_role_menu WHERE menu_id IN (130, 131, 132, 2000, 2001, 2002, 2003, 2004);")
+    op.execute("DELETE FROM sys_menu WHERE menu_id IN (130, 131, 132, 2000, 2001, 2002, 2003, 2004);")
     op.execute("DELETE FROM sys_role_menu;")
     op.execute("DELETE FROM sys_user_role WHERE user_id IN (101, 102, 103, 104, 105, 106, 107);")
     op.execute("DELETE FROM sys_user_role WHERE user_id = 1;")

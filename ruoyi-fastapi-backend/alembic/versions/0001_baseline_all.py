@@ -614,9 +614,117 @@ def upgrade() -> None:
     op.create_index('idx_op_business_line', 'biz_operation', ['business_line'])
     op.create_index('idx_op_period', 'biz_operation', ['period'])
 
+    # ============== 代码生成业务表 gen_table ==============
+    op.create_table(
+        'gen_table',
+        sa.Column('table_id', sa.BigInteger, primary_key=True, autoincrement=True, comment='编号'),
+        sa.Column('table_name', sa.String(200), nullable=False, server_default='', comment='表名称'),
+        sa.Column('table_comment', sa.String(500), nullable=False, server_default='', comment='表描述'),
+        sa.Column('sub_table_name', sa.String(64), nullable=True, comment='关联子表的表名'),
+        sa.Column('sub_table_fk_name', sa.String(64), nullable=True, comment='子表关联的外键名'),
+        sa.Column('class_name', sa.String(100), nullable=False, server_default='', comment='实体类名称'),
+        sa.Column('tpl_category', sa.String(200), nullable=False, server_default='crud', comment='使用的模板'),
+        sa.Column('tpl_web_type', sa.String(30), nullable=False, server_default='', comment='前端模板类型'),
+        sa.Column('package_name', sa.String(100), nullable=True, comment='生成包路径'),
+        sa.Column('module_name', sa.String(30), nullable=True, comment='生成模块名'),
+        sa.Column('business_name', sa.String(30), nullable=True, comment='生成业务名'),
+        sa.Column('function_name', sa.String(50), nullable=True, comment='生成功能名'),
+        sa.Column('function_author', sa.String(50), nullable=True, comment='生成功能作者'),
+        sa.Column('gen_type', sa.String(1), nullable=False, server_default='0', comment='生成代码方式'),
+        sa.Column('gen_path', sa.String(200), nullable=False, server_default='/', comment='生成路径'),
+        sa.Column('options', sa.String(1000), nullable=True, comment='其它生成选项'),
+        sa.Column('create_by', sa.String(64), nullable=False, server_default='', comment='创建者'),
+        sa.Column('create_time', sa.DateTime, nullable=True, comment='创建时间'),
+        sa.Column('update_by', sa.String(64), nullable=False, server_default='', comment='更新者'),
+        sa.Column('update_time', sa.DateTime, nullable=True, comment='更新时间'),
+        sa.Column('remark', sa.String(500), nullable=True, comment='备注'),
+        **_mysql_table_kwargs(bind),
+        comment='代码生成业务表',
+    )
+
+    # ============== 代码生成业务表字段 gen_table_column ==============
+    op.create_table(
+        'gen_table_column',
+        sa.Column('column_id', sa.BigInteger, primary_key=True, autoincrement=True, comment='编号'),
+        sa.Column('table_id', sa.BigInteger, nullable=True, comment='归属表编号'),
+        sa.Column('column_name', sa.String(200), nullable=True, comment='列名称'),
+        sa.Column('column_comment', sa.String(500), nullable=True, comment='列描述'),
+        sa.Column('column_type', sa.String(100), nullable=True, comment='列类型'),
+        sa.Column('python_type', sa.String(500), nullable=True, comment='PYTHON类型'),
+        sa.Column('python_field', sa.String(200), nullable=True, comment='PYTHON字段名'),
+        sa.Column('is_pk', sa.String(1), nullable=True, comment='是否主键'),
+        sa.Column('is_increment', sa.String(1), nullable=True, comment='是否自增'),
+        sa.Column('is_required', sa.String(1), nullable=True, comment='是否必填'),
+        sa.Column('is_unique', sa.String(1), nullable=True, comment='是否唯一'),
+        sa.Column('is_insert', sa.String(1), nullable=True, comment='是否为插入字段'),
+        sa.Column('is_edit', sa.String(1), nullable=True, comment='是否编辑字段'),
+        sa.Column('is_list', sa.String(1), nullable=True, comment='是否列表字段'),
+        sa.Column('is_query', sa.String(1), nullable=True, comment='是否查询字段'),
+        sa.Column('query_type', sa.String(200), nullable=False, server_default='EQ', comment='查询方式'),
+        sa.Column('html_type', sa.String(200), nullable=True, comment='显示类型'),
+        sa.Column('dict_type', sa.String(200), nullable=False, server_default='', comment='字典类型'),
+        sa.Column('sort', sa.Integer, nullable=True, comment='排序'),
+        sa.Column('create_by', sa.String(64), nullable=False, server_default='', comment='创建者'),
+        sa.Column('create_time', sa.DateTime, nullable=True, comment='创建时间'),
+        sa.Column('update_by', sa.String(64), nullable=False, server_default='', comment='更新者'),
+        sa.Column('update_time', sa.DateTime, nullable=True, comment='更新时间'),
+        **_mysql_table_kwargs(bind),
+        comment='代码生成业务表字段',
+    )
+
+    # ============== AI 模型表 ai_models ==============
+    op.create_table(
+        'ai_models',
+        sa.Column('model_id', sa.BigInteger, primary_key=True, autoincrement=True, comment='模型主键'),
+        sa.Column('model_code', sa.String(100), nullable=False, comment='模型编码'),
+        sa.Column('model_name', sa.String(100), nullable=True, comment='模型名称'),
+        sa.Column('provider', sa.String(50), nullable=False, comment='提供商'),
+        sa.Column('model_sort', sa.Integer, nullable=False, comment='显示顺序'),
+        sa.Column('api_key', sa.String(255), nullable=True, comment='API Key'),
+        sa.Column('base_url', sa.String(255), nullable=True, comment='Base URL'),
+        sa.Column('model_type', sa.String(50), nullable=True, comment='模型类型'),
+        sa.Column('max_tokens', sa.Integer, nullable=True, comment='最大输出 token'),
+        sa.Column('temperature', sa.Float, nullable=True, comment='默认温度'),
+        sa.Column('support_reasoning', sa.String(1), nullable=False, server_default='N', comment='是否支持推理'),
+        sa.Column('support_images', sa.String(1), nullable=False, server_default='N', comment='是否支持图片'),
+        sa.Column('status', sa.String(1), nullable=False, server_default='0', comment='模型状态'),
+        sa.Column('user_id', sa.BigInteger, nullable=True, comment='用户ID'),
+        sa.Column('dept_id', sa.BigInteger, nullable=True, comment='部门ID'),
+        sa.Column('create_by', sa.String(64), nullable=False, server_default='', comment='创建者'),
+        sa.Column('create_time', sa.DateTime, nullable=True, comment='创建时间'),
+        sa.Column('update_by', sa.String(64), nullable=False, server_default='', comment='更新者'),
+        sa.Column('update_time', sa.DateTime, nullable=True, comment='更新时间'),
+        sa.Column('remark', sa.String(500), nullable=True, comment='备注'),
+        **_mysql_table_kwargs(bind),
+        comment='AI模型表',
+    )
+
+    # ============== AI 对话配置表 ai_chat_config ==============
+    op.create_table(
+        'ai_chat_config',
+        sa.Column('chat_config_id', sa.BigInteger, primary_key=True, autoincrement=True, comment='配置主键'),
+        sa.Column('user_id', sa.BigInteger, nullable=False, unique=True, comment='用户ID'),
+        sa.Column('temperature', sa.Float, nullable=True, comment='默认温度'),
+        sa.Column('add_history_to_context', sa.String(1), nullable=False, server_default='0', comment='是否添加历史记录(0是,1否)'),
+        sa.Column('num_history_runs', sa.Integer, nullable=True, comment='历史记录条数'),
+        sa.Column('system_prompt', sa.Text, nullable=True, comment='系统提示词'),
+        sa.Column('metrics_default_visible', sa.String(1), nullable=False, server_default='0', comment='默认显示指标(0是,1否)'),
+        sa.Column('vision_enabled', sa.String(1), nullable=False, server_default='1', comment='是否开启视觉(0是,1否)'),
+        sa.Column('image_max_size_mb', sa.Integer, nullable=True, comment='图片最大大小(MB)'),
+        sa.Column('create_time', sa.DateTime, nullable=True, comment='创建时间'),
+        sa.Column('update_time', sa.DateTime, nullable=True, comment='更新时间'),
+        **_mysql_table_kwargs(bind),
+        comment='AI对话配置表',
+    )
+
 
 def downgrade() -> None:
     """downgrade sys + biz 全套表（删除顺序：先删子表后删父表）"""
+    # AI + 代码生成器 表（独立模块，无外键依赖）
+    op.drop_table('ai_chat_config')
+    op.drop_table('ai_models')
+    op.drop_table('gen_table_column')
+    op.drop_table('gen_table')
     # biz 表（无外键依赖，按业务关联反向删）
     op.drop_table('biz_operation')
     op.drop_table('biz_bank_statement')
