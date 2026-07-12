@@ -6,11 +6,12 @@ from config.database import AsyncSessionLocal, Base, async_engine
 from utils.log_util import logger
 
 
-def get_db() -> AsyncGenerator[AsyncSession, None]:
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
-    每一个请求处理完毕后会关闭当前连接，不同的请求使用不同的连接
+    每一个请求处理完毕后会关闭当前连接，不同的请求使用不同的连接。
 
-    :return:
+    使用 async def 与 AsyncSessionLocal().async with 保持一致；
+    FastAPI 的 Depends(get_db) 自动支持 async generator。
     """
     async with AsyncSessionLocal() as current_db:
         yield current_db

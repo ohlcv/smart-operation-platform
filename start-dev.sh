@@ -433,10 +433,24 @@ run_docker_mode() {
   #   - 镜像缺失 → 报错提示
   # 改了代码想强制重建：手动 docker compose -f $DOCKER_COMPOSE_FILE build --no-cache
   log_info "  启动容器（复用本地镜像）..."
-  if ! docker compose -f "$DOCKER_COMPOSE_FILE" up -d; then
-    log_warn "  启动失败（很可能是镜像不存在），尝试自动构建一次..."
-    docker compose -f "$DOCKER_COMPOSE_FILE" up -d --build
+  local up_log="/tmp/start-dev-up-$$.log"
+  if ! docker compose -f "$DOCKER_COMPOSE_FILE" up -d > "$up_log" 2>&1; then
+    if grep -qE "manifest for .* not found|no such image|image not found" "$up_log"; then
+      log_warn "  镜像缺失，自动构建一次..."
+      docker compose -f "$DOCKER_COMPOSE_FILE" up -d --build
+    else
+      log_error "  启动失败，且非镜像缺失问题（原始日志见末尾）："
+      sed 's/^/    /' "$up_log"
+      log_error "  常见原因：网络 ruoyi-network 状态异常 / 端口冲突 / 配置错误 / 容器内应用崩"
+      log_error "  排查建议："
+      log_error "    1) docker network ls | grep ruoyi-network（确认网络存在）"
+      log_error "    2) bash scripts/cleanup-orphan-network.sh（清理孤儿网络）"
+      log_error "    3) docker compose -f $DOCKER_COMPOSE_FILE logs --tail=50 ruoyi-backend-my"
+      rm -f "$up_log"
+      exit 1
+    fi
   fi
+  rm -f "$up_log"
 
   # 等待容器就绪
   log_info "等待服务启动..."
