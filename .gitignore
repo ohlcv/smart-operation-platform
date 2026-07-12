@@ -1,5 +1,6 @@
 # macOS
 .DS_Store
+.backend.pid
 
 # 后端运行时
 ruoyi-fastapi-backend/.backend.pid
