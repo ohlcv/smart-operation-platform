@@ -31,7 +31,7 @@
 | D26 | 注解层 PEP 563 forward ref 兼容性 | 凡通过 `inspect.signature(func).parameters` 解析参数类型注解的工具函数（@Log、参数名提取等），必须用 `typing.get_type_hints(func)` 解析 forward ref 后再做类型匹配；controller 启用 `from __future__ import annotations` 时注解会是字符串，原生比较会失败 | ✅ 已确认 |
 | D27 | 前端顶级路由必须 redirect + 侧边栏绝对路径短路 | 顶层父路由（含 `/biz`、`/dashboard` 等独立顶级路由）必须配置 `redirect` 到第一个子路由；侧边栏 `SidebarItem.resolvePath` 必须短路以 `/` 开头的 routePath，避免与空 basePath 拼出 `//xxx` | ✅ 已确认 |
 | D28 | 路线 C 仪表盘升级范围 | Pydantic 模型统一采用别名显式声明（`Field(alias='xx', serialization_alias='xx')`）优先于 `alias_generator=to_camel`，避免纯数字+字母连写的边界 case 把字段转成「首字母大写」；具体场景：`trend_7d` → 显式 alias `trend7d` | ✅ 已确认 |
-| D29 | 仪表盘大屏形态（v3.6 扁平化） | v3.5 收敛为单形态 `/dashboard/dashboard` 后，v3.6 进一步扁平化为**顶级路由 `/dashboard`**（不再有 `/dashboard` 父级 Layout 容器）：`path: '/dashboard'` + `component: '@/views/dashboard/dashboard.vue'` 单行；删除 dashboard 父路由的 `redirect` + `component: Layout` + children 嵌套；删除 `useRouter` / `useRoute` / `fullscreen` ref / `toggleScreen` 函数 / `props.fullscreen` 等已无引用的代码与样式分支；浏览器原生 F11 全屏 + 三栏 full-screen 样式（无 Layout 包裹） | ✅ 已确认 |
+| D29 | 仪表盘双形态（v3.9 双路由共用 + 浏览器真全屏，v3.10 CSS 修正 Chrome 横向滚动 / sidebar 遮挡） | v3.8 嵌入 Layout + URL query `?fullscreen=1` 切换 CSS 形态，但实测发现"应用层切 CSS ≠ 浏览器真全屏"，用户期望"全屏模式 = 真·浏览器全屏 + 去掉 Layout"。**v3.9 修订为双路由共用同一 dashboard.vue**：(1) router 保留 `/dashboard` (Layout 嵌) + 新增 `/dashboard/screen` (顶级，不嵌 Layout，`hidden:true` 菜单不显示)；(2) dashboard.vue 加 `isScreenRoute = computed(() => route.name === 'BizDashboardScreen')` 判形态；(3) 模板 `:class="{ 'is-fullscreen': isScreenRoute }"`，按钮文字 `{{ isScreenRoute ? '退出全屏' : '全屏模式' }}`；(4) `toggleFullscreen()` 默认态 → `router.push('/dashboard/screen')` + `document.documentElement.requestFullscreen()`（50ms 延迟等路由切换），大屏态 → `exitFullscreen()` + `router.push('/dashboard')`；(5) 听 `fullscreenchange` / `webkitfullscreenchange` 事件，浏览器 Esc 退出全屏时自动 `router.push('/dashboard')` 回默认；(6) onMounted 判断 `isScreenRoute && !getFullscreenElement()` 自动补一次 requestFullscreen（处理直链 / 刷新 / 浏览器后退场景）；(7) CSS 双形态：`.ds` 默认嵌 Layout（负 margin 拉满左右，无 100vh）+ `.ds.is-fullscreen` 真大屏（min-height: 100vh + margin: 0）。**v3.10 CSS 修正**：v3.9 `.ds` 用 `margin: 0 calc(50% - 50vw)` 强行溢出到 100vw，**Chrome 出现 body 横向滚动条 + 暗色背景左边被 sidebar 盖住**（Safari 行为不一致掩盖问题）；改 `.ds` 为 `width: 100%; margin: 0`，暗色背景只到 Layout 主区边界，跟其他业务页一致，不被 sidebar 遮挡，无横向溢出。**回退 v3.8**：去掉 URL query `?fullscreen=1` 持久化；去掉 fullscreen ref/computed（改用 isScreenRoute） | ✅ 已确认 |
 | D31 | 仪表盘改名为仪表盘（v3.6） | 「仪表盘」产品名沿用自 v1.0 demo；v3.6 收敛为顶级路由 `/dashboard` 后页面已无「仪表盘」实体氛围，且与 dashboard.vue 文件名一致性更强，故用户视角统一改名「仪表盘」：(1) `sys_menu.menu_id=13.menu_name='仪表盘'→'仪表盘'`；(2) router meta title + dashboard.vue 顶部中文标题「数据仪表盘」→「数据仪表盘」；(3) 后端 FastAPI tag 改「业务管理-仪表盘」+ Pydantic/DAO/Service docstring 头部加「原仪表盘」回溯注释；(4) API 设计文档第十三章标题「仪表盘模块」→「仪表盘模块」；(5) **未改**：URL 路径 `/biz/dashboard/overview` 仍保留（前端 api/biz/dashboard.js 沿用），`dashboard_*.py` Python 文件名（重命名影响类名 import 全网扫描），历史 ADR 标题 D28/D29/路线 B-C 开发计划保留原标题（历史快照不改） | ✅ 已确认 |
 | D30 | DAO filter 参数显式签名 | service 层用 `asyncio.gather(*DAO_calls)` 并发调用时，DAO 签名必须显式接收 filter 参数（如 `province: str = ''`），而非用 `**kwargs` 兜底；好处：① 静态层 inspect.signature 一眼看出哪些 DAO 支持哪些维度过滤；② 漏接参数时直接 TypeError 而非静默忽略；③ `if province:` 分支条件清晰可读；本规则在 `dashboard_dao.trend_7d` 漏接 province 事故中确立（v3.5） | ✅ 已确认 |
 
@@ -683,50 +683,101 @@ dict_keys(['channelLocations', 'generatedAt', 'kpi', 'province', 'recentApproval
 
 ---
 
-### D29：仪表盘大屏形态（v3.5 收敛——单形态路线）
+### D29：仪表盘大屏形态（v3.9 双路由共用 + 浏览器真全屏）
 
-**v3.4 原始问题**：v3.0/v3.3 路线 A/B 落地后，仪表盘是一个普通业务页，对比 demo1 `DataScreen.vue` 有形态差距。v3.4 路线 C 决定做**三形态**（工作台 / 大屏 / 全屏投放）来对齐 demo1。
+**演进时间线**：
+- v3.4：三形态（工作台 / 大屏 / 全屏投放），3 个独立路由
+- v3.5：收敛为单形态 `/dashboard/dashboard` 真·大屏（顶级路由）
+- v3.6：扁平化为顶级路由 `/dashboard`（不嵌 Layout）
+- v3.8：反向——嵌 Layout + URL query `?fullscreen=1` 切 CSS 形态
+- **v3.9（本变更）**：双路由共用同一 dashboard.vue + 浏览器 Fullscreen API
 
-**v3.5 收敛原因**（实测发现）：
+**v3.8 → v3.9 反向变更原因**（用户实测反馈 v3.8 仍不达预期）：
 
-1. **全屏按钮状态同步 bug**：dashboard.vue `toggleScreen()` 退出分支没同步 `fullscreen.value = false`，按退出后按钮文字仍卡在「退出」；浏览器 Esc 退出 + 组件 ref 状态不同步同样有问题
-2. **`readexactly()` socket race**：浏览器通过 HTTP/1.1 keep-alive 连接多次重载后的 9099 端口时，两个 Python 进程争 socket，前一个未读完 stream 后一个又来，触发 `axios` 内部 `readexactly() called while another coroutine is already waiting for incoming data`
-3. **三形态认知负担**：工作台 / 大屏 / 全屏三处入口，菜单 / 按钮 / 状态同步代码重复
+1. **应用层 CSS 切 ≠ 浏览器真全屏**：v3.8 的 `?fullscreen=1` 只让仪表盘暗色区占 100vh，但 Layout 框架（菜单/顶栏/Tags View）依然显示 = 不是用户期望的"真大屏"
+2. **按钮文字与视觉状态反了**：v3.8 默认嵌 Layout 时按钮写"全屏模式"（OK），但**点击后进入 100vh 状态时按钮写"退出全屏"**——用户期望"全屏模式"按钮在点击后**真去全屏（隐藏 Layout）**，而不是只 CSS 撑高
 
-**决策**：v3.5 收敛为**单一形态**：
+**决策**（v3.9）：
 
-1. **`/dashboard` 真·大屏（唯一保留，v3.6 扁平化顶级路由）**
-   - 顶级路由（不再嵌 Layout，直接全屏渲染）
-   - 侧边栏「仪表盘」菜单 → `/dashboard`
-   - 顶部标题栏：智能运营平台 · 数据仪表盘 + 英文副标题 + 时钟 + 今日日期
-   - 三栏分栏（左 / 中 / 右）：
-     - 左：6 KPI 数字翻牌 + 7 日合同趋势
-     - 中：渠道天眼地图（`effectScatter` + `lines` 物流飞线 + 中枢高亮 + `visualMap` + `province-click`）
-     - 右：7 级审批流跑马灯（hover 暂停 + 无缝循环）+ AI 大脑（6 维雷达 + 打字机轮播）
-   - 省份联动：点地图省份 → 全部按 `province` 过滤；「← 返回全国」按钮回全国视图
-   - 60s 自动刷新 overview，90s 自动刷新 AI
-   - **全屏用浏览器原生 F11 / 系统快捷键**，应用层不做全屏
+1. **router 双路由共用 dashboard.vue**：
+   ```
+   // 路由 1：默认嵌 Layout（菜单可见）
+   {
+     path: '/dashboard',
+     component: Layout,
+     redirect: '/dashboard/index',
+     permissions: ['biz:dashboard:view'],
+     meta: { title: '仪表盘', icon: 'dashboard' },
+     children: [{
+       path: 'index',
+       component: () => import('@/views/dashboard/dashboard.vue'),
+       name: 'BizDashboard',
+       meta: { title: '仪表盘', icon: 'dashboard', activeMenu: '/dashboard' }
+     }]
+   }
 
-2. **删除 `/dashboard/index` 工作台入口**：`views/biz/dashboard/index.vue` 文件 + `biz/dashboard` 空目录都已删除
+   // 路由 2：真·大屏（顶级，不嵌 Layout，菜单 hidden）
+   {
+     path: '/dashboard/screen',
+     component: () => import('@/views/dashboard/dashboard.vue'),
+     name: 'BizDashboardScreen',
+     permissions: ['biz:dashboard:view'],
+     meta: { title: '仪表盘 · 大屏', hidden: true, activeMenu: '/dashboard' }
+   }
+   ```
 
-3. **删除 `/dashboard/screen` 全屏投放路由**：hidden 路由 + 自动 requestFullscreen + Esc 退 全部移除，dashboard.vue 里 `toggleScreen` / `onKey` / `onFullscreenChange` / `fullscreenchange` 监听全清掉，fullscreen ref 退化为仅 `:class` 绑定的无副作用常量
+2. **dashboard.vue 形态判定**：`isScreenRoute = computed(() => route.name === 'BizDashboardScreen')`
+   - `:class="{ 'is-fullscreen': isScreenRoute }"` 控制 CSS
+   - 按钮文字：`{{ isScreenRoute ? '退出全屏' : '全屏模式' }}`
+
+3. **`toggleFullscreen()` 联动路由 + Fullscreen API**：
+   - 默认态（isScreenRoute=false）→ `router.push('/dashboard/screen')`（50ms 后等路由切换完）→ `document.documentElement.requestFullscreen()`
+   - 大屏态（isScreenRoute=true）→ `exitFullscreen()` + `router.push('/dashboard')`
+
+4. **fullscreenchange 事件双向同步**：浏览器 Esc / 系统切走全屏时，`isScreenRoute=true` 且 `document.fullscreenElement` 为 null → 自动 `router.push('/dashboard')` 回默认
+
+5. **onMounted 直链场景兜底**：刷新 / 直链 `/dashboard/screen` 时，如果浏览器不在全屏状态，**自动补一次 `requestFullscreen`**（80ms 延迟）
+
+6. **CSS 双形态**（与 v3.8 同）：
+   - `.ds`（默认嵌 Layout）：去掉 `min-height: 100vh`，负 margin `calc(50% - 50vw)` 拉满左右
+   - `.ds.is-fullscreen`（真大屏）：`min-height: 100vh` + `margin: 0` 占满整页
 
 **Rationale**：
 
-- 单一形态 = 单一代码路径 = 零按钮状态同步坑
-- 应用层全屏入口本质是 UX 假象（用户按 F11 一样全屏），价值低、维护成本高
-- HTTP/1.1 keep-alive + 多次 reload 的 socket race 由 **start-dev.sh 加 9099 端口暴力清场（最多 3 次 `kill -9`）** 根治
-- 浏览器原生全屏不触发任何组件 ref 同步问题
+- 形态判定用 `route.name` 比 URL query 更直接：刷新 / 直链 / 后退都能精准还原形态
+- 双路由共用同一文件，避免代码重复（CSS class 由 isScreenRoute 切换）
+- Fullscreen API + 路由切换双联动：浏览器全屏状态 / 应用路由状态 / CSS 形态三者一致
+- fullscreenchange 监听保证浏览器原生退出（Esc）能自动回默认路由，按钮文字不会卡在"退出全屏"
 
-**架构图**（v3.5）：
+**v3.10 CSS 修正**（Chrome 横向滚动 / sidebar 遮挡）：
+
+- **回归问题**：v3.8/v3.9 `.ds` 用 `margin: 0 calc(50% - 50vw)` 强行让暗色背景延伸到 100vw。Chrome 严格按 CSS spec 出现 body 横向滚动条 + 暗色背景左边被 sidebar 盖住；Safari 对 `100vw` 溢出行为不一致，暂时掩盖问题。
+- **修复**：v3.10 `.ds` 改成 `width: 100%; margin: 0; padding: 14px 20px` —— 暗色背景只到 Layout 主区边界，跟其他业务页行为一致，不被 sidebar 遮挡，没有横向溢出。
+- **代价**：嵌入 Layout 形态下暗色背景不再贯穿屏幕边缘；想要"暗色背景贯穿全屏"必须切到真·大屏形态 `/dashboard/screen`（top level + `.ds.is-fullscreen` CSS `min-height: 100vh + margin: 0`）。
+
+**架构图**（v3.9）：
 
 ```
-                    /biz/dashboard/overview?province=xx
-                              │
-                              ▼
-                  /dashboard 真·大屏（v3.6 扁平化顶级路由，唯一形态）
-                       头部 + 三栏 + 省份联动
-                       F11 / 系统快捷键全屏
+侧边栏菜单「仪表盘」 → /dashboard → redirect /dashboard/index
+   ↓                              (默认嵌 Layout，仪表盘完整显示)
+   Layout (navbar / Tags View / sidebar)
+   ↓
+   /dashboard/index → dashboard.vue
+                          ├─ isScreenRoute = false
+                          ├─ .ds class（嵌 Layout，负 margin 拉满）
+                          └─ 按钮「全屏模式」
+
+点击「全屏模式」 → router.push('/dashboard/screen')
+                       + requestFullscreen()
+                       ↓
+                /dashboard/screen → dashboard.vue (顶级，不嵌 Layout)
+                          ├─ isScreenRoute = true
+                          ├─ .ds.is-fullscreen class（100vh + margin: 0）
+                          ├─ 浏览器真全屏（隐藏 chrome）
+                          └─ 按钮「退出全屏」
+
+按 Esc 或点「退出全屏」 → exitFullscreen() + router.push('/dashboard')
+                       → 回到默认嵌 Layout 形态
 ```
 
 **后端 province 数据链**（不变）：

@@ -163,8 +163,8 @@ insert into sys_menu values('1',  '系统管理', '0', '1',  'system',          
 insert into sys_menu values('2',  '系统监控', '0', '2',  'monitor',          null, '', '', 1, 0, 'M', '0', '0', '', 'monitor',  'admin', sysdate(), '', null, '系统监控目录');
 insert into sys_menu values('3',  '系统工具', '0', '3',  'tool',             null, '', '', 1, 0, 'M', '0', '0', '', 'tool',     'admin', sysdate(), '', null, '系统工具目录');
 insert into sys_menu values('4',  'AI 管理', '0', '4',  'ai',               null, '', '', 1, 0, 'M', '0', '0', '', 'ai-manage', 'admin', sysdate(), '', null, 'AI 管理目录');
-insert into sys_menu values('5',  '业务管理', '0', '5',  'biz',              null, '', '', 1, 0, 'M', '0', '0', '', 'chart',      'admin', sysdate(), '', null, '业务管理目录');
-insert into sys_menu values('6',  '合同管理', '5',  '1',  'contract',         'biz/contract/index',              '', '', 1, 0, 'C', '0', '0', '',              'document',   'admin', sysdate(), '', null, '合同管理菜单');
+insert into sys_menu values('5',  '业务管理', '0', '5',  'biz',              null, '', '', 1, 0, 'M', '0', '0', '', 'shopping',    'admin', sysdate(), '', null, '业务管理目录');
+insert into sys_menu values('6',  '合同管理', '5',  '1',  'contract',         'biz/contract/index',              '', '', 1, 0, 'C', '0', '0', '',              'list',        'admin', sysdate(), '', null, '合同管理菜单');
 insert into sys_menu values('7',  '客户管理', '5',  '2',  'customer',         'biz/customer/index',             '', '', 1, 0, 'C', '0', '0', '',              'peoples',    'admin', sysdate(), '', null, '客户管理菜单');
 -- insert into sys_menu values('99', '若依官网', '0', '99', 'http://ruoyi.vip', null, '', '', 0, 0, 'M', '0', '0', '', 'guide',    'admin', sysdate(), '', null, '若依官网地址');
 -- 二级菜单

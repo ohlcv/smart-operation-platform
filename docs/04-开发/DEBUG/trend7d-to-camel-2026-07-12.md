@@ -9,7 +9,7 @@
 
 ## 1. 现象
 
-路线 C 重构 dashboardrd 后，本地端到端测试通过 `pytest -dashboardoard` 全绿；路由层打开 `/biz/dashboard/overview` 看响应：
+路线 C 重构 dashboard 后，本地端到端测试通过 `pytest -dashboard` 全绿；路由层打开 `/biz/dashboard/overview` 看响应：
 
 ```json
 {
@@ -80,7 +80,7 @@ class DashboardOverviewModel(DashboardBaseModel):
     kpi: DashboardKpiModel = Field(default_factory=DashboardKpiModel)
     trend_7d: list[Trend7dItemModel] = Field(default_factory=list)
 
-dashboardrdBaseModel.model_config = ConfigDict(
+dashboardBaseModel.model_config = ConfigDict(
     alias_generator=to_camel,
     from_attributes=True,
     populate_by_name=True,
@@ -162,7 +162,7 @@ class DashboardOverviewModel(DashboardBaseModel):
 
 ```bash
 $ ./venv/bin/python -c "
-from module_biz.entity.vo.dashboardrd_vo import DashboardOverviewModel
+from module_biz.entity.vo.dashboard_vo import DashboardOverviewModel
 m = DashboardOverviewModel(trend_7d=[])
 print(sorted(m.model_dump(by_alias=True, mode='json').keys()))
 "

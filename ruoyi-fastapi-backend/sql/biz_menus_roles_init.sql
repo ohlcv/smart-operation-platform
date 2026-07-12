@@ -180,8 +180,8 @@ VALUES
 INSERT IGNORE INTO sys_menu
   (menu_id, menu_name, parent_id, order_num, path, component, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, remark)
 VALUES
-  (13, '仪表盘', 0, 13, '/dashboard', 'dashboard/dashboard', 1, 0, 'C', '0', '0',
-   'biz:dashboard:view', 'dashboard', 'admin', NOW(), '战略驾驶舱顶级路由 /dashboard');
+  (13, '仪表盘', 0, 13, '/dashboard', 'cockpit/dashboard', 1, 0, 'C', '0', '0',
+   'biz:dashboard:view', 'dashboard', 'admin', NOW(), '仪表盘顶级路由 /dashboard (v3.6 嵌入 Layout + 支持 ?fullscreen=1 全屏)');
 INSERT IGNORE INTO sys_role_menu (role_id, menu_id) VALUES (1, 13);
 
 -- v3.1 hotfix：顶级菜单 path 必须加前导 '/'（否则 vue-router 匹配失败）

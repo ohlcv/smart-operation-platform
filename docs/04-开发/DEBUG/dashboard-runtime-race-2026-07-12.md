@@ -9,7 +9,7 @@
 
 ## 1. 现象
 
-打开 `/dashboardrd/index` 工作台，浏览器 console：
+打开 `/dashboard/index` 工作台，浏览器 console：
 
 ```
 [EP warn] type.text is about to be deprecated in version 3.0.0, please use link instead
@@ -47,7 +47,7 @@ async def trend_7d(db: AsyncSession) -> list[Trend7dItemModel]:  # ← 只收 db
 
 `trend_7d` 没接 `province`，TypeError 抛在 gather 内部，FastAPI 拦截 → 500。
 
-**静态层冒烟不报**：之前 `pytest -k dashboardrd` 用 unit test 直接构造 mock，没跑过真实 `service.overview_services(...)`，所以漏。
+**静态层冒烟不报**：之前 `pytest -k dashboard` 用 unit test 直接构造 mock，没跑过真实 `service.overview_services(...)`，所以漏。
 
 ### 2.2 前端 axios socket race
 
@@ -219,7 +219,7 @@ export function getDashboardAiDiagnose(config = {}) {
 - [x] DAO 全部 10 个方法签名符合 service gather 调用契约（`inspect.signature` 实证）
 - [x] `DashboardOverviewModel(trend_7d=[]).model_dump(by_alias=True)` 键集合包含 `trend7d`、不包含 `trend7D`
 - [x] dashboard/index.vue / dashboard.vue load + loadAi 都有 AbortController + in-flight dedup
-- [x] dashboardrd API `getDashboardOverview({ signal })` / `getDashboardAiDiagnose()` 透传 config
+- [x] dashboard API `getDashboardOverview({ signal })` / `getDashboardAiDiagnose()` 透传 config
 - [x] 全仓 grep `<el-button.*type="text"` 已无命中
 - [x] dashboard.vue onBeforeUnmount 清理 overviewTimer + aiTimer + abortCtrl（之前漏）
 
@@ -254,5 +254,5 @@ EP 升级到 3.x 后，`type="text"` 是大量 RuoYi 原生按钮的写法。建
 - **影响范围**：
   - 后端 1 文件（`module_biz/dao/dashboard_dao.py`）
   - 前端 4 文件（`api/biz/dashboard.js` / `views/biz/dashboard/index.vue` / `views/dashboard/dashboard.vue` / `views/tool/build/index.vue`）
-  - 受益：所有 dashboardrd 视图在切换省份 / 切换组件 / Vite HMR 重载场景不再触发 axios socket race
-- **回归**：建议用 `scripts/test_dashboardrd_v3_3.py` 走 3 个端点 + province 维度过滤断言
+  - 受益：所有 dashboard 视图在切换省份 / 切换组件 / Vite HMR 重载场景不再触发 axios socket race
+- **回归**：建议用 `scripts/test_dashboard_v3_3.py` 走 3 个端点 + province 维度过滤断言

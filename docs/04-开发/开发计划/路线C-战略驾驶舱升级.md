@@ -43,14 +43,14 @@
 | **`components/Biz/ScreenMap.vue`** | 升级 | demo1 同款 `effectScatter + lines 物流飞线 + 中枢高亮 + visualMap 省份着色 + province-click emit` |
 | **`views/dashboard/dashboard.vue`** | **新建** | 真·大屏：头部 + 三栏 + 跑马灯 + AI 雷达 + 省份联动 + Esc 退 |
 | **`views/biz/dashboard/index.vue`** | 改 | 改造为工作台入口：6 KPI 可点击跳业务 + AI 摘要卡片 + 「进入大屏」按钮 |
-| **`router/index.js`** | 改 | dashboardrd 加 `dashboard` 子路由；新增 hidden dashboardoard/screen` 全屏投放路由 |
+| **`router/index.js`** | 改 | dashboard 加 `dashboard` 子路由；新增 hidden dashboard/screen` 全屏投放路由 |
 
 ### 2.3 基础设施（3 文件）
 
 | 文件 | 改动 |
 |------|------|
-| `start-dev.sh` | 增量 SQL 挂到 `04-dashboardrd-v3-3.sql`；加探测逻辑：已建库自动跑 ALTER |
-| `scripts/test_dashboardrd_v3_3.py` | 新建：端到端回归（3 端点 + camelCase 断言） |
+| `start-dev.sh` | 增量 SQL 挂到 `04-dashboard-v3-3.sql`；加探测逻辑：已建库自动跑 ALTER |
+| `scripts/test_dashboard_v3_3.py` | 新建：端到端回归（3 端点 + camelCase 断言） |
 
 ---
 
@@ -58,14 +58,14 @@
 
 | 维度 | demo1 `DataScreen.vue` | 现状 v3.3 | 升级后 v3.4 |
 |---|---|---|---|
-| **头部标题** | 中英双行 + 在线点 + 时钟 + 全屏 | ❌ 无 | ✅ `/dashboardrd/dashboard` 完整复刻 |
+| **头部标题** | 中英双行 + 在线点 + 时钟 + 全屏 | ❌ 无 | ✅ `/dashboard/dashboard` 完整复刻 |
 | **三栏分栏** | 左 26 / 中 / 右 26 | ❌ 按行罗列 | ✅ 三栏 flex |
 | **KPI 维度** | 4 个财务维度 | 6 个业务维度 | ✅ 6 个业务维度（KPI 卡可点击跳业务页——demo1 没有） |
 | **省份联动** | ✅ demo1 招牌 | ❌ 无 | ✅ 点地图省份 → KPI/趋势/Top10/状态分布 联动 |
 | **物流飞线** | ✅ demo1 招牌 | ❌ 无 | ✅ effectScatter + lines + 中枢高亮（北京） |
 | **审批流表达** | 跑马灯 | el-timeline 静态 | ✅ 跑马灯（hover 暂停 + 无缝循环） |
 | **AI 风险大脑** | 雷达 6 维 + 打字机 | ❌ 无 | ✅ 雷达 + summary/risks/suggestions 打字机 |
-| **全屏投放** | 自动 requestFullscreen | ❌ 无 | ✅ `/dashboardrd/screen` 自动 + Esc 退 |
+| **全屏投放** | 自动 requestFullscreen | ❌ 无 | ✅ `/dashboard/screen` 自动 + Esc 退 |
 
 **形态差距已闭合**，且在 KPI 卡可跳转业务、工作台 + 大屏二级形态分离两点上**超出 demo1**。
 
@@ -140,8 +140,8 @@ D13 决策「规则引擎保底 + 大模型可选」，本阶段 v3.4 落地保�
 - **D28**：Pydantic 别名显式声明（`trend7d` 案例）
 - **D29**：仪表盘三形态（工作台 + 大屏 + 全屏投放）
 - **D24**（重申）：JSON camelCase 是路线 C 的契约基础
-- **D26**（受益）：`@Log` IndexError 修复让 dashboardrd 4 个端点全部日志正常
-- **D27**（受益）：`/dashboardrd/dashboard` 顶级父路由靠 D27 redirect 兜底避免 404
+- **D26**（受益）：`@Log` IndexError 修复让 dashboard 4 个端点全部日志正常
+- **D27**（受益）：`/dashboard/dashboard` 顶级父路由靠 D27 redirect 兜底避免 404
 
 ---
 
