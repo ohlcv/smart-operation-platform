@@ -17,8 +17,8 @@ class GenTable(Base):
     __table_args__ = {'comment': '代码生成业务表'}
 
     table_id = Column(BigInteger, primary_key=True, nullable=False, autoincrement=True, comment='编号')
-    table_name = Column(String(200), nullable=True, server_default="''", comment='表名称')
-    table_comment = Column(String(500), nullable=True, server_default="''", comment='表描述')
+    table_name = Column(String(200), nullable=True, server_default='', comment='表名称')
+    table_comment = Column(String(500), nullable=True, server_default='', comment='表描述')
     sub_table_name = Column(
         String(64),
         nullable=True,
@@ -31,12 +31,12 @@ class GenTable(Base):
         server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type),
         comment='子表关联的外键名',
     )
-    class_name = Column(String(100), nullable=True, server_default="''", comment='实体类名称')
+    class_name = Column(String(100), nullable=True, server_default='', comment='实体类名称')
     tpl_category = Column(
         String(200), nullable=True, server_default='crud', comment='使用的模板（crud单表操作 tree树表操作）'
     )
     tpl_web_type = Column(
-        String(30), nullable=True, server_default="''", comment='前端模板类型（element-ui模版 element-plus模版）'
+        String(30), nullable=True, server_default='', comment='前端模板类型（element-ui模版 element-plus模版）'
     )
     package_name = Column(String(100), nullable=True, comment='生成包路径')
     module_name = Column(String(30), nullable=True, comment='生成模块名')
@@ -46,9 +46,9 @@ class GenTable(Base):
     gen_type = Column(CHAR(1), nullable=True, server_default='0', comment='生成代码方式（0zip压缩包 1自定义路径）')
     gen_path = Column(String(200), nullable=True, server_default='/', comment='生成路径（不填默认项目路径）')
     options = Column(String(1000), nullable=True, comment='其它生成选项')
-    create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
+    create_by = Column(String(64), nullable=True, server_default='', comment='创建者')
     create_time = Column(DateTime, nullable=True, default=datetime.now(), comment='创建时间')
-    update_by = Column(String(64), nullable=True, server_default="''", comment='更新者')
+    update_by = Column(String(64), nullable=True, server_default='', comment='更新者')
     update_time = Column(DateTime, nullable=True, default=datetime.now(), comment='更新时间')
     remark = Column(
         String(500),
@@ -94,11 +94,11 @@ class GenTableColumn(Base):
     html_type = Column(
         String(200), nullable=True, comment='显示类型（文本框、文本域、下拉框、复选框、单选框、日期控件）'
     )
-    dict_type = Column(String(200), nullable=True, server_default="''", comment='字典类型')
+    dict_type = Column(String(200), nullable=True, server_default='', comment='字典类型')
     sort = Column(Integer, nullable=True, comment='排序')
-    create_by = Column(String(64), server_default="''", comment='创建者')
+    create_by = Column(String(64), server_default='', comment='创建者')
     create_time = Column(DateTime, nullable=True, default=datetime.now(), comment='创建时间')
-    update_by = Column(String(64), server_default="''", comment='更新者')
+    update_by = Column(String(64), server_default='', comment='更新者')
     update_time = Column(DateTime, nullable=True, default=datetime.now(), comment='更新时间')
 
     tables = relationship(

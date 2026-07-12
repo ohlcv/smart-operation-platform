@@ -20,9 +20,9 @@ class SysPost(Base):
     post_name = Column(String(50), nullable=False, comment='岗位名称')
     post_sort = Column(Integer, nullable=False, comment='显示顺序')
     status = Column(CHAR(1), nullable=False, comment='状态（0正常 1停用）')
-    create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
+    create_by = Column(String(64), nullable=True, server_default='', comment='创建者')
     create_time = Column(DateTime, nullable=True, default=datetime.now(), comment='创建时间')
-    update_by = Column(String(64), nullable=True, server_default="''", comment='更新者')
+    update_by = Column(String(64), nullable=True, server_default='', comment='更新者')
     update_time = Column(DateTime, nullable=True, default=datetime.now(), comment='更新时间')
     remark = Column(
         String(500),
