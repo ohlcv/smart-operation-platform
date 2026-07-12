@@ -174,7 +174,9 @@ run_local_mode() {
           -v $PROJECT_ROOT/ruoyi-fastapi-backend/sql/ruoyi-fastapi.sql:/docker-entrypoint-initdb.d/01-ruoyi-fastapi.sql \
           -v $PROJECT_ROOT/ruoyi-fastapi-backend/sql/biz_init.sql:/docker-entrypoint-initdb.d/02-biz-init.sql \
           -v $PROJECT_ROOT/ruoyi-fastapi-backend/sql/biz_menus_roles_init.sql:/docker-entrypoint-initdb.d/03-biz-menus-roles.sql \
-          -v $PROJECT_ROOT/ruoyi-fastapi-backend/sql/cockpit_v3_3_init.sql:/docker-entrypoint-initdb.d/04-cockpit-v3-3.sql \
+          -v $PROJECT_ROOT/ruoyi-fastapi-backend/sql/biz_channel_init.sql:/docker-entrypoint-initdb.d/03a-biz-channel-init.sql \
+          -v $PROJECT_ROOT/ruoyi-fastapi-backend/sql/dashboard_v3_3_init.sql:/docker-entrypoint-initdb.d/04-dashboard-v3-3.sql \
+          -v $PROJECT_ROOT/ruoyi-fastapi-backend/sql/approval_init.sql:/docker-entrypoint-initdb.d/05-approval-init.sql \
           -v $PROJECT_ROOT/mysql-conf/charset.cnf:/etc/mysql/conf.d/charset.cnf:ro" || echo "-p 16379:6379") \
         $([ "$name" = "ruoyi-mysql" ] && echo "mysql:8.0 --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci --skip-character-set-client-handshake=1" || echo "redis:latest")
     fi
@@ -200,17 +202,44 @@ run_local_mode() {
   # ---- 增量 SQL：已建库时手动跑（initdb.d 只在首次启动生效） ----
   if is_container_running "ruoyi-mysql"; then
     # 探测 biz_channel.province 列是否存在，不存在就说明 v3.3 增量未跑
-    has_province=$(LANG=C docker exec ruoyi-mysql mysql --default-character-set=utf8mb4 \
-      -uroot -proot -N -B \
-      -e "SHOW COLUMNS FROM biz_channel LIKE 'province'" 2>/dev/null | wc -l)
-    if [ "${has_province:-0}" = "0" ]; then
+    if ! LANG=C docker exec ruoyi-mysql mysql --default-character-set=utf8mb4 \
+        -uroot -proot -N -B ruoyi-fastapi \
+        -e "SHOW COLUMNS FROM biz_channel LIKE 'province'" 2>/dev/null \
+        | grep -q '^province'; then
       log_warn "  检测到 biz_channel.province 缺失，自动执行 v3.3 增量脚本..."
-      LANG=C docker exec -i ruoyi-mysql mysql --default-character-set=utf8mb4 \
-        -uroot -proot ruoyi-fastapi \
-        < "$BACKEND_DIR/sql/cockpit_v3_3_init.sql" 2>&1 | tail -10 || \
-        log_warn "  v3.3 增量脚本执行失败，请手动跑: docker exec -i ruoyi-mysql mysql -uroot -proot ruoyi-fastapi < $BACKEND_DIR/sql/cockpit_v3_3_init.sql"
+      if ! LANG=C docker exec -i ruoyi-mysql mysql --default-character-set=utf8mb4 \
+          -uroot -proot ruoyi-fastapi \
+          < "$BACKEND_DIR/sql/dashboard_v3_3_init.sql" >/dev/null 2>&1; then
+        log_error "  v3.3 增量脚本执行失败，请手动跑: docker exec -i ruoyi-mysql mysql -uroot -proot ruoyi-fastapi < $BACKEND_DIR/sql/dashboard_v3_3_init.sql"
+        exit 1
+      fi
     else
       log_info "  v3.3 增量已应用 ✓"
+    fi
+
+    # 探测 sys_user.signature 列是否存在，不存在就说明 v3.4 approval 增量未跑
+    if ! LANG=C docker exec ruoyi-mysql mysql --default-character-set=utf8mb4 \
+        -uroot -proot -N -B ruoyi-fastapi \
+        -e "SHOW COLUMNS FROM sys_user LIKE 'signature'" 2>/dev/null \
+        | grep -q '^signature'; then
+      log_warn "  检测到 sys_user.signature 缺失，自动执行 v3.4 approval 增量脚本..."
+      if ! LANG=C docker exec -i ruoyi-mysql mysql --default-character-set=utf8mb4 \
+          -uroot -proot ruoyi-fastapi \
+          < "$BACKEND_DIR/sql/approval_init.sql" >/dev/null 2>&1; then
+        log_error "  v3.4 approval 增量脚本执行失败，请手动跑: docker exec -i ruoyi-mysql mysql -uroot -proot ruoyi-fastapi < $BACKEND_DIR/sql/approval_init.sql"
+        exit 1
+      fi
+      # 二次校验：脚本声称成功后必须真能看到列
+      if ! LANG=C docker exec ruoyi-mysql mysql --default-character-set=utf8mb4 \
+          -uroot -proot -N -B ruoyi-fastapi \
+          -e "SHOW COLUMNS FROM sys_user LIKE 'signature'" 2>/dev/null \
+          | grep -q '^signature'; then
+        log_error "  v3.4 approval 脚本执行成功但 sys_user.signature 仍未创建，疑似 SQL 语法不兼容，请检查 approval_init.sql §0"
+        exit 1
+      fi
+      log_info "  v3.4 approval 增量已应用 ✓"
+    else
+      log_info "  v3.4 approval 增量已应用 ✓"
     fi
   fi
 

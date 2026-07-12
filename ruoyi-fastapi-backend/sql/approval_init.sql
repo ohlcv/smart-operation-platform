@@ -19,18 +19,19 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- 0. sys_user 补 signature 字段（数据库设计 §3.2 line 174）
 --    用于电子签名审批快照（biz_approval.signature_snapshot 来源）
 -- =====================================================================
--- 检查列是否存在
-SET @col_exists = (
+-- v3.7.2 修复：原版用 ADD COLUMN IF NOT EXISTS 仅 MySQL 8.0.29+ 支持，
+--   低于该版本（如 8.0.23 / 8.0.27 等）会报 1064 语法错，
+--   且本项目 docker run 拉的是 mysql:8.0 浮动 tag，版本不可控。
+--   改用 INFORMATION_SCHEMA 探测 + PREPARE/EXECUTE 动态 SQL，
+--   兼容 MySQL 5.7 / 8.0 全版本，幂等（再跑不挂）。
+SET @sig_exists := (
   SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sys_user' AND COLUMN_NAME = 'signature'
 );
-SET @sql = IF(@col_exists = 0,
+SET @sql := IF(@sig_exists = 0,
   'ALTER TABLE sys_user ADD COLUMN signature VARCHAR(500) DEFAULT NULL COMMENT ''电子签名 base64 data URI''',
-  'SELECT ''signature 列已存在，跳过'' AS info'
-);
-PREPARE stmt FROM @sql;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
+  'SELECT ''sys_user.signature 已存在，跳过'' AS msg');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- =====================================================================
 -- 1. 审批中心菜单 + perms（数据库设计 §四 §4.2）
