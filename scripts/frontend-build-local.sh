@@ -2,15 +2,15 @@
 # ============================================
 # 本地构建打包脚本
 # ============================================
-# 在本地 Mac 执行,只做编译和打包
-# 不涉及服务器操作
+# 在本地 Mac 执行,只做前端编译和打包
+# 默认只打包前端,不包含后端代码
 #
 # 使用方法:
 #   chmod +x build-local.sh
 #   ./build-local.sh
 #
 # 执行后生成:
-#   /tmp/smart-ops.tar.gz  (部署包)
+#   /tmp/smart-ops.tar.gz  (部署包,仅含前端)
 
 set -e
 
@@ -19,6 +19,7 @@ PROJECT_NAME="smart-ops"
 
 echo "==========================================="
 echo "  本地构建打包"
+echo "  模式: 仅前端"
 echo "==========================================="
 
 cd "$SCRIPT_DIR"
@@ -55,15 +56,17 @@ else
     echo "[3/4] 跳过编译(dist/ 已存在)"
 fi
 
-# 3. 打包项目
-echo "[4/4] 打包项目..."
-tar --exclude='ruoyi-fastapi-frontend/node_modules' \
-    --exclude='ruoyi-fastapi-frontend/dist' \
-    --exclude='.git' \
-    --exclude='__pycache__' \
-    --exclude='*.pyc' \
-    --exclude='.DS_Store' \
-    --exclude='*.log' \
+# 3. 打包项目(不包含 backend)
+echo "[4/4] 打包项目(仅前端)..."
+tar --exclude=ruoyi-fastapi-frontend/node_modules \
+    --exclude=ruoyi-fastapi-frontend/.git \
+    --exclude=ruoyi-fastapi-backend \
+    --exclude=ruoyi-fastapi-test \
+    --exclude=.git \
+    --exclude=*.log \
+    --exclude=.DS_Store \
+    --exclude=*.tar.gz \
+    --exclude=scripts/__pycache__ \
     -czvf /tmp/${PROJECT_NAME}.tar.gz .
 
 # 4. 显示结果
@@ -74,6 +77,7 @@ echo "  构建完成!"
 echo "==========================================="
 echo "  打包文件: /tmp/${PROJECT_NAME}.tar.gz"
 echo "  文件大小: ${PACKAGE_SIZE}"
+echo "  包含: 仅前端"
 echo ""
 echo "  接下来执行部署脚本:"
 echo "  ./deploy-server.sh"

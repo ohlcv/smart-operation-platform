@@ -1,20 +1,26 @@
 #!/bin/bash
 # ============================================
-# Traefik 部署脚本 — 生产环境
+# Traefik 部署脚本
 # ============================================
 # 使用方法:
 #   chmod +x deploy-traefik.sh
 #   ./deploy-traefik.sh
 #
+# 说明:
+#   - 删除所有旧容器
+#   - 重新创建全部容器
+#   - 前端构建镜像,后端使用已有镜像
+#
 # 访问地址:
 #   https://meowquant.site         (前端)
-#   https://meowquant.site/docs   (API 文档)
+#   https://meowquant.site/docs    (API 文档)
 #   https://traefik.meowquant.site (Traefik Dashboard)
 
 set -e
 
 echo "=========================================="
-echo "  Traefik 生产环境部署"
+echo "  部署服务"
+echo "  模式: 删除旧容器,重新创建全部"
 echo "=========================================="
 
 # 1. 创建必要目录
@@ -75,17 +81,22 @@ if [ ! -f traefik/dynamic/traefik-dynamic.toml ]; then
 EOF
 fi
 
-# 4. 启动所有服务
-echo "[3/4] 启动 Traefik + 应用服务..."
+# 4. 删除旧容器,重新创建全部
+echo "[3/4] 删除所有旧容器..."
+docker stop $(docker ps -aq) 2>/dev/null || true
+docker rm $(docker ps -aq) 2>/dev/null || true
+echo "   删除完成"
+
+echo "[4/4] 启动全部服务(前端构建,后端使用已有镜像)..."
 docker compose -f docker-compose.traefik.yml -p smart-ops up -d --build
 
-echo "[4/4] 完成!"
 echo ""
 echo "=========================================="
-echo "  访问地址:"
-echo "  前端:       https://meowquant.site"
-echo "  API 文档:   https://meowquant.site/docs"
-echo "  Traefik:    https://traefik.meowquant.site"
+echo "  部署完成!"
+echo "=========================================="
+echo "  前端:    https://meowquant.site"
+echo "  API:     https://meowquant.site/docs"
+echo "  Traefik: https://traefik.meowquant.site"
 echo "=========================================="
 echo ""
 echo "首次访问 HTTPS 会自动申请 Let's Encrypt 证书,"

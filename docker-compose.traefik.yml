@@ -80,12 +80,9 @@ services:
     restart: unless-stopped
 
   # -----------------------------------------
-  # 后端服务 (FastAPI)
+  # 后端服务 (使用已有镜像,不重新构建)
   # -----------------------------------------
   ruoyi-backend-my:
-    build:
-      context: ./ruoyi-fastapi-backend
-      dockerfile: Dockerfile.my
     image: ruoyi-backend-my:latest
     container_name: ruoyi-backend-my
     depends_on:
