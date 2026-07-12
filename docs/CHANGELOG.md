@@ -4,6 +4,58 @@
 
 ---
 
+## 2026-07-12 — v3.11/v3.12 仪表盘 KPI 对齐 SRS + 首页完全重写
+
+### 重大变更
+
+#### 1. 仪表盘 KPI 卡 6 → 9 张（v3.12 阶段，D30 v3.11 补记落地）
+
+- **后端 VO** (`dashboard_vo.py DashboardKpiModel`) 新增 3 个 P0 财务指标字段：
+  - `operationRevenue` 总营收（biz_operation 手工录入聚合；省份模式 → biz_contract.amount）
+  - `operationGrossProfit` 总毛利（全国 mode 聚合；省份 mode v3.12 简化返回 0，等 v3.13 接 cost 列后重算）
+  - `operationContractCount` 订单数/合同数
+- **AiRiskItemModel** 新增 `levelLabel` 字段（前端直接拿「高/中/低风险」中文，避免硬编码映射）
+- **DAO** `DashboardDAO.kpi_operation(db, province)`（dashboard_dao.py）：全国 mode 走 biz_operation 当年 month + quarter + year 汇总；省份 mode 退化到 biz_contract.amount（遵循 D05 biz_operation 不加列决定）
+- **trend_revenue 修复**：`trend_revenue(db, province: str = '', year)` 显式接 province（违反 D30 v3.5 规则的隐藏 bug 修复），service.gather 透传 province，5 个 province DAO 签名静态校验补全
+- **前端 dashboard.vue**：KPI 卡 9 张，前 3 张核心财务（总营收 ¥ / 总毛利 ¥ / 订单数）+ 后 6 张合同运营（合同总数 / 审批中 / 已通过 / 本月合同金额 / 待我审批 / 待开发票）；CSS 改 3 列布局（grid `1fr 1fr 1fr`）适配 9 张卡
+- **dashboard.vue 头部注释**：补 v3.12 段，明确口径差异（全国 = biz_operation 手工营收，省份 = biz_contract.amount）
+
+#### 2. 首页完全重写（v3.11，commit 9959ccc）
+
+- Ant Design Vue → Element Plus 全栈统一（D31 落地）
+- 静态 demo1 假数据 → 真实 API（待我审批 / 最近合同 / KPI 都从 `getDashboardOverview` / `listApprovals` / `listContracts` 取）
+- 新增 8 业务模块快速导航 + 我的工作台（待我处理 + 本月业务动态 + 快捷操作）
+- 删除「系统信息」（版本/构建日期/环境/登录用户用户根本不需要），改「我的工作台」三段式
+- store/modules/user.js 加 signature 字段透传
+
+#### 3. ADR 增量
+
+- **D30 摘要段**：补 v3.11 补记（trend_revenue 漏接 province 案例）
+- **D30 详细段**：补 v3.11 段落，明确「省份=contract.amount 签约金额」与「全国=biz_operation 手工营收」的口径差异
+
+#### 4. 台账增量
+
+- v3.11 整段：3 处「先按下不表」决策（KPI 重做 vs 现状 6 KPI / 后端多产字段未用 / KPI 可点击未做）+ trend_revenue 联动 bug 修复
+- v3.12 整段：KPI 卡 6 → 9 完整记录（DAO/VO/service.gather/CSS）+ 口径差异 + 下一步 v3.13 未决项
+
+### 受影响范围
+
+| 层级 | 改动 | 风险 |
+|------|------|------|
+| 后端 model | 3 新字段 + ai_risk.levelLabel | 🟡 新部署跑 `dashboard_init.sql`（如有）；老数据不回填 |
+| 后端 DAO | 新增 kpi_operation + 修 trend_revenue 签名 | 🟢 静态校验已对齐 |
+| 前端 dashboard.vue | KPI 渲染 + CSS grid | 🟢 9 张卡视觉验证通过 |
+| 前端 index.vue | 完全重写 | 🟢 全部路由可达、零 lint 错误 |
+| 文档 | ADR/台账/CHANGELOG 同步 | 🟢 |
+
+### 未在本次落地（用户决策「先按下不表」）
+
+- 后端 11 KPI 全字段上卡（contract_month_new / customer_total / channel_total / contract_rejected 暂未上卡，9 张已是视觉平衡点）
+- KPI 卡点击跳业务页（v3.4 文档承诺但 demo1 没实现）
+- biz_operation 加 province/cost 列（v3.13）
+
+---
+
 ## 2026-07-11 — v3.0 API 字段命名一致性重构（ADR D24 落地）
 
 ### 重大变更

@@ -1,0 +1,24 @@
+# ============================================
+# 前端生产环境 Dockerfile (纯静态资源版)
+# ============================================
+# 用法: 本地 Mac build 好,上传 dist/ 到服务器
+# 服务器直接 docker compose up -d (不需要 --build)
+#
+# 构建步骤(在本地 Mac 执行,不上传到服务器):
+#   cd ruoyi-fastapi-frontend
+#   npm install
+#   npm run build:docker
+#   # dist/ 目录就是编译产物
+
+# 运行阶段:只 serve 静态文件,不编译
+FROM nginx:alpine
+WORKDIR /usr/share/nginx/html
+
+# 复制本地编译好的静态文件
+COPY dist .
+
+# 暴露端口
+EXPOSE 80
+
+# 启动 nginx
+CMD ["nginx", "-g", "daemon off;"]

@@ -1,0 +1,109 @@
+# ============================================
+# 生产环境 docker-compose (无构建版)
+# ============================================
+# 前提: 前端 dist/ 已经编译好(在本地 Mac 执行 npm run build:docker)
+# 服务器只需: docker compose -f docker-compose.server.yml up -d
+# 不需要 --build,服务器不编译任何东西
+
+services:
+  # -----------------------------------------
+  # 前端服务(预编译静态资源,只 serve)
+  # -----------------------------------------
+  ruoyi-frontend:
+    build:
+      context: ./ruoyi-fastapi-frontend
+      dockerfile: Dockerfile.prod   # 使用生产版 Dockerfile
+    image: ruoyi-frontend:prod
+    container_name: ruoyi-frontend
+    networks:
+      - ruoyi-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`meowquant.site`)"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.frontend.priority=10"
+    restart: unless-stopped
+
+  # -----------------------------------------
+  # 后端服务(已在本地 build 好了,服务器只运行)
+  # -----------------------------------------
+  ruoyi-backend-my:
+    build:
+      context: ./ruoyi-fastapi-backend
+      dockerfile: Dockerfile.my
+    image: ruoyi-backend-my:latest
+    container_name: ruoyi-backend-my
+    depends_on:
+      ruoyi-mysql:
+        condition: service_healthy
+      ruoyi-redis:
+        condition: service_healthy
+    networks:
+      - ruoyi-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=Host(`meowquant.site`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.entrypoints=websecure"
+      - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.backend.middlewares=backend-stripprefix"
+      - "traefik.http.routers.backend.priority=20"
+      - "traefik.http.middlewares.backend-stripprefix.stripprefix.prefixes=/api"
+    restart: unless-stopped
+
+  # -----------------------------------------
+  # MySQL 8.0
+  # -----------------------------------------
+  ruoyi-mysql:
+    image: mysql:8.0
+    container_name: ruoyi-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ruoyi-fastapi
+    volumes:
+      - ./ruoyi-fastapi-backend/sql/ruoyi-fastapi.sql:/docker-entrypoint-initdb.d/01-ruoyi-fastapi.sql
+      - ./ruoyi-fastapi-backend/sql/biz_init.sql:/docker-entrypoint-initdb.d/02-biz-init.sql
+      - ./ruoyi-fastapi-backend/sql/biz_menus_roles_init.sql:/docker-entrypoint-initdb.d/03-biz-menus-roles.sql
+      - ./ruoyi-fastapi-backend/sql/dashboard_v3_3_init.sql:/docker-entrypoint-initdb.d/04-dashboard-v3-3.sql
+      - ./ruoyi-fastapi-backend/sql/approval_init.sql:/docker-entrypoint-initdb.d/05-approval-init.sql
+      - ./mysql-conf/charset.cnf:/etc/mysql/conf.d/charset.cnf:ro
+      - mysql-data:/var/lib/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci --skip-character-set-client-handshake=1
+    networks:
+      - ruoyi-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+    restart: unless-stopped
+
+  # -----------------------------------------
+  # Redis
+  # -----------------------------------------
+  ruoyi-redis:
+    image: redis:latest
+    container_name: ruoyi-redis
+    volumes:
+      - redis-data:/data
+    networks:
+      - ruoyi-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+    restart: unless-stopped
+
+# 网络配置
+networks:
+  ruoyi-network:
+    name: ruoyi-network
+    driver: bridge
+
+# 数据持久化
+volumes:
+  mysql-data:
+    name: smart-ops-mysql-data
+  redis-data:
+    name: smart-ops-redis-data

@@ -32,7 +32,7 @@
 | D27 | 前端顶级路由必须 redirect + 侧边栏绝对路径短路 | 顶层父路由（含 `/biz`、`/dashboard` 等独立顶级路由）必须配置 `redirect` 到第一个子路由；侧边栏 `SidebarItem.resolvePath` 必须短路以 `/` 开头的 routePath，避免与空 basePath 拼出 `//xxx` | ✅ 已确认 |
 | D28 | 路线 C 仪表盘升级范围 | Pydantic 模型统一采用别名显式声明（`Field(alias='xx', serialization_alias='xx')`）优先于 `alias_generator=to_camel`，避免纯数字+字母连写的边界 case 把字段转成「首字母大写」；具体场景：`trend_7d` → 显式 alias `trend7d` | ✅ 已确认 |
 | D29 | 仪表盘双形态（v3.9 双路由共用 + 浏览器真全屏，v3.10 CSS 修正 Chrome 横向滚动 / sidebar 遮挡） | v3.8 嵌入 Layout + URL query `?fullscreen=1` 切换 CSS 形态，但实测发现"应用层切 CSS ≠ 浏览器真全屏"，用户期望"全屏模式 = 真·浏览器全屏 + 去掉 Layout"。**v3.9 修订为双路由共用同一 dashboard.vue**：(1) router 保留 `/dashboard` (Layout 嵌) + 新增 `/dashboard/screen` (顶级，不嵌 Layout，`hidden:true` 菜单不显示)；(2) dashboard.vue 加 `isScreenRoute = computed(() => route.name === 'BizDashboardScreen')` 判形态；(3) 模板 `:class="{ 'is-fullscreen': isScreenRoute }"`，按钮文字 `{{ isScreenRoute ? '退出全屏' : '全屏模式' }}`；(4) `toggleFullscreen()` 默认态 → `router.push('/dashboard/screen')` + `document.documentElement.requestFullscreen()`（50ms 延迟等路由切换），大屏态 → `exitFullscreen()` + `router.push('/dashboard')`；(5) 听 `fullscreenchange` / `webkitfullscreenchange` 事件，浏览器 Esc 退出全屏时自动 `router.push('/dashboard')` 回默认；(6) onMounted 判断 `isScreenRoute && !getFullscreenElement()` 自动补一次 requestFullscreen（处理直链 / 刷新 / 浏览器后退场景）；(7) CSS 双形态：`.ds` 默认嵌 Layout（负 margin 拉满左右，无 100vh）+ `.ds.is-fullscreen` 真大屏（min-height: 100vh + margin: 0）。**v3.10 CSS 修正**：v3.9 `.ds` 用 `margin: 0 calc(50% - 50vw)` 强行溢出到 100vw，**Chrome 出现 body 横向滚动条 + 暗色背景左边被 sidebar 盖住**（Safari 行为不一致掩盖问题）；改 `.ds` 为 `width: 100%; margin: 0`，暗色背景只到 Layout 主区边界，跟其他业务页一致，不被 sidebar 遮挡，无横向溢出。**回退 v3.8**：去掉 URL query `?fullscreen=1` 持久化；去掉 fullscreen ref/computed（改用 isScreenRoute） | ✅ 已确认 |
-| D31 | 仪表盘改名为仪表盘（v3.6） | 「仪表盘」产品名沿用自 v1.0 demo；v3.6 收敛为顶级路由 `/dashboard` 后页面已无「仪表盘」实体氛围，且与 dashboard.vue 文件名一致性更强，故用户视角统一改名「仪表盘」：(1) `sys_menu.menu_id=13.menu_name='仪表盘'→'仪表盘'`；(2) router meta title + dashboard.vue 顶部中文标题「数据仪表盘」→「数据仪表盘」；(3) 后端 FastAPI tag 改「业务管理-仪表盘」+ Pydantic/DAO/Service docstring 头部加「原仪表盘」回溯注释；(4) API 设计文档第十三章标题「仪表盘模块」→「仪表盘模块」；(5) **未改**：URL 路径 `/biz/dashboard/overview` 仍保留（前端 api/biz/dashboard.js 沿用），`dashboard_*.py` Python 文件名（重命名影响类名 import 全网扫描），历史 ADR 标题 D28/D29/路线 B-C 开发计划保留原标题（历史快照不改） | ✅ 已确认 |
+| D31 | 仪表盘改名（v3.6） | 菜单/路由/页面标题统一为「仪表盘」（sys_menu.menu_id=13.menu_name、router meta title、dashboard.vue 顶部标题「智能运营平台 · 数据仪表盘」）；后端 FastAPI tag 为「业务管理-仪表盘」；API 设计文档第十三章标题同步更新为「仪表盘模块」；**未改**：URL 路径 `/biz/dashboard/overview`、Python 文件名 `dashboard_*.py`、历史 ADR 标题 D28/D29（保留历史快照） | ✅ 已确认 |
 | D30 | DAO filter 参数显式签名 | service 层用 `asyncio.gather(*DAO_calls)` 并发调用时，DAO 签名必须显式接收 filter 参数（如 `province: str = ''`），而非用 `**kwargs` 兜底；好处：① 静态层 inspect.signature 一眼看出哪些 DAO 支持哪些维度过滤；② 漏接参数时直接 TypeError 而非静默忽略；③ `if province:` 分支条件清晰可读；本规则在 `dashboard_dao.trend_7d` 漏接 province 事故中确立（v3.5）。**v3.11 补记**：`trend_revenue` 也漏接过 province 一次（v3.10 工作树），改成 `trend_revenue(db, province: str = '', year=None)` + service 透传 province；省份模式改走 biz_contract.amount 按 sign_date 月聚合（不让 biz_operation 加列，遵循 D05 决定） | ✅ 已确认 |
 
 ---
@@ -162,10 +162,13 @@ draft ──提交──► pending ──审批通过──► approved
 - 两者解耦后，可灵活调整菜单权限，不影响审批流
 - 例如：业务经办可以分配"财务管理"菜单权限，但仍然是业务经办审批角色
 
-**实现方式**：
-- `sys_user.approval_role`：审批角色（`business_handler` 等）
-- `sys_user.rbac_role_id`：RBAC 角色 ID（关联 `sys_role` 表）
-- `sys_user.is_superuser`：超级管理员标识
+**实现方式**（实际落地）：
+- **审批角色**：复用 RuoYi 原生 `sys_user_role` 多对多关联表，关联到 `sys_role`，用 `role_sort` 排序值区分审批链层级（`role_sort=1~7` 对应 7 级审批链，`role_sort=0` 为超管，`role_sort>7` 为非审批角色）
+- **超管判定**：不走 `approval_role` 字段，由 `current_user.user.admin` 标志位（实际由 `user_id == 1` 推导）实现 bypass
+- **判定逻辑**：`approval_service.py` 的 `_user_role_sorts(user_id)` 查询用户所有 role_sort 值；`can_approve(step)` 判断 `step + 1` 是否在用户 role_sort 集合中（仅取 `1~7` 范围）
+- **无新增字段**：`sys_user` 表未新增 `approval_role` / `rbac_role_id`，完全复用 RuoYi 现有多对多角色体系
+
+**与文档初稿差异**：文档初稿（D07 v1.0）设计为 `sys_user` 新增 `approval_role` 单字段；实际落地改为 RuoYi `sys_user_role` 多对多 + `role_sort` 排序值，原因是 RuoYi 框架本身已有多对多角色体系，复用比新增字段迁移成本更低，且 `role_sort` 天然满足 7 级审批链排序需求。
 
 ---
 
@@ -295,7 +298,7 @@ draft ──提交──► pending ──审批通过──► approved
 3. 在 `src/router/index.js` 中将路由引用从 `import('@/views/login.vue')` 改为 `import('@/views/login/index.vue')`
 4. v1 Demo 登录页中引用的图片/样式资源需同步迁移到 `src/assets/` 下
 
-**状态流转**：🔴 已决策，待实施
+**状态**：⚠️ **已决策，暂缓实施** — 路由已指向 `import('@/views/login')`（单文件），`login.vue` 保留；待后续有登录页子组件扩展需求时再迁移目录结构。当前维持 RuoYi 原生单文件组织。
 
 ---
 
@@ -484,6 +487,8 @@ rg -n '#[0-9a-fA-F]{3,6}' src/views/biz/**/*.vue \
 **关联决策**：D23（前端登录页文件组织）、D24（API 字段命名一致性）。
 
 **关联 DEBUG**：`DEBUG/approval-dark-mode-hardcoded-colors-2026-07-11.md`（2026-07-11 审批中心暗色适配修复记录，含 3 个文件 12 处替换明细）。
+
+**现状补记**：D25 规则已落地于审批中心主要页面（`approval/index.vue`），`#f56c6c` 等业务语义色已纳入允许清单；但 `approval/ContractDetailDrawer.vue`（合同详情抽屉）、`biz/ota/index.vue`（OTA 导入页）等文件仍有 EP 调色板色值残留（`#409eff / #ecf5ff / #606266 / #909399` 等），计划 v3.14 前完成全量替换并补充 DEBUG 收尾记录。
 
 ---
 

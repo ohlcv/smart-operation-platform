@@ -1,0 +1,30 @@
+# ============================================
+# Traefik 动态配置文件
+# 处理 /api 路径到后端的路由
+# ============================================
+
+[http.routers]
+  [http.routers.to-https]
+    entryPoints = ["web"]
+    rule = "Host(`meowquant.site`)"
+    middlewares = ["redirect-to-https"]
+    priority = 1
+
+[http.middlewares]
+  [http.middlewares.redirect-to-https]
+    [http.middlewares.redirect-to-https.redirectScheme]
+      scheme = "https"
+      permanent = true
+
+  [http.middlewares.backend-stripprefix]
+    [http.middlewares.backend-stripprefix.stripPrefix]
+      prefixes = ["/api"]
+
+[http.services]
+  [http.services.frontend-service]
+    [[http.services.frontend-service.loadBalancer.servers]]
+      url = "http://ruoyi-frontend:80"
+
+  [http.services.backend-service]
+    [[http.services.backend-service.loadBalancer.servers]]
+      url = "http://ruoyi-backend-my:9099"

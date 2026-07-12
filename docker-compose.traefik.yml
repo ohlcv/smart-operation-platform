@@ -1,0 +1,164 @@
+# ============================================
+# Traefik + 应用服务 — 生产环境完整部署
+# ============================================
+# 使用方式: 把整个目录传到服务器,执行:
+#   sudo docker compose -f docker-compose.traefik.yml -p traefik-system up -d
+#   sudo docker compose -f docker-compose.app.yml -p smart-ops up -d --build
+#
+# 访问: https://meowquant.site
+
+services:
+  # -----------------------------------------
+  # Traefik 反向代理 + 自动 HTTPS
+  # -----------------------------------------
+  traefik:
+    image: traefik:v3.1
+    container_name: traefik
+    restart: always
+    command:
+      # API 配置
+      - "--api.insecure=true"
+      # 入口点
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      # Let's Encrypt 自动申请证书
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.letsencrypt.acme.email=your-email@meowquant.site"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      # Docker 自动发现
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=smart-ops-network"
+      # 文件 providers(动态配置)
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
+      # 日志
+      - "--log.level=INFO"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"   # Traefik Dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/letsencrypt:/letsencrypt
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+    networks:
+      - smart-ops-network
+    labels:
+      # Traefik Dashboard
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.meowquant.site`)"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.dashboard.middlewares=auth"
+      - "traefik.http.middlewares.auth.basicauth.users=admin:$$apr1$$xxxxxxxx$$xxxxxxxxxxxxxxxxxxxxxxxxxx"
+    environment:
+      - TZ=Asia/Shanghai
+
+  # -----------------------------------------
+  # 前端服务 (Nginx 静态资源)
+  # -----------------------------------------
+  ruoyi-frontend:
+    build:
+      context: ./ruoyi-fastapi-frontend
+      dockerfile: Dockerfile
+    image: ruoyi-frontend:latest
+    container_name: ruoyi-frontend
+    volumes:
+      - ./ruoyi-fastapi-frontend/bin/nginx.dockermy.conf:/etc/nginx/conf.d/default.conf
+    networks:
+      - smart-ops-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`meowquant.site`)"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.frontend.priority=10"
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
+    restart: unless-stopped
+
+  # -----------------------------------------
+  # 后端服务 (FastAPI)
+  # -----------------------------------------
+  ruoyi-backend-my:
+    build:
+      context: ./ruoyi-fastapi-backend
+      dockerfile: Dockerfile.my
+    image: ruoyi-backend-my:latest
+    container_name: ruoyi-backend-my
+    depends_on:
+      ruoyi-mysql:
+        condition: service_healthy
+      ruoyi-redis:
+        condition: service_healthy
+    networks:
+      - smart-ops-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=Host(`meowquant.site`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.entrypoints=websecure"
+      - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.backend.middlewares=backend-stripprefix"
+      - "traefik.http.routers.backend.priority=20"
+      - "traefik.http.services.backend.loadbalancer.server.port=9099"
+      - "traefik.http.middlewares.backend-stripprefix.stripprefix.prefixes=/api"
+    restart: unless-stopped
+
+  # -----------------------------------------
+  # MySQL 8.0
+  # -----------------------------------------
+  ruoyi-mysql:
+    image: mysql:8.0
+    container_name: ruoyi-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ruoyi-fastapi
+    volumes:
+      - ./ruoyi-fastapi-backend/sql/ruoyi-fastapi.sql:/docker-entrypoint-initdb.d/01-ruoyi-fastapi.sql
+      - ./ruoyi-fastapi-backend/sql/biz_init.sql:/docker-entrypoint-initdb.d/02-biz-init.sql
+      - ./ruoyi-fastapi-backend/sql/biz_menus_roles_init.sql:/docker-entrypoint-initdb.d/03-biz-menus-roles.sql
+      - ./ruoyi-fastapi-backend/sql/dashboard_v3_3_init.sql:/docker-entrypoint-initdb.d/04-dashboard-v3-3.sql
+      - ./ruoyi-fastapi-backend/sql/approval_init.sql:/docker-entrypoint-initdb.d/05-approval-init.sql
+      - ./mysql-conf/charset.cnf:/etc/mysql/conf.d/charset.cnf:ro
+      - mysql-data:/var/lib/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci --skip-character-set-client-handshake=1
+    networks:
+      - smart-ops-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+    restart: unless-stopped
+
+  # -----------------------------------------
+  # Redis
+  # -----------------------------------------
+  ruoyi-redis:
+    image: redis:latest
+    container_name: ruoyi-redis
+    volumes:
+      - redis-data:/data
+    networks:
+      - smart-ops-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+    restart: unless-stopped
+
+# 网络配置
+networks:
+  smart-ops-network:
+    name: smart-ops-network
+    driver: bridge
+
+# 数据持久化
+volumes:
+  mysql-data:
+    name: smart-ops-mysql-data
+  redis-data:
+    name: smart-ops-redis-data

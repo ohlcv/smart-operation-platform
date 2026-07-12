@@ -1,0 +1,14 @@
+{
+  "letsencrypt": {
+    "Account": {
+      "Email": "your-email@meowquant.site",
+      "Registration": {
+        "Body": {
+          "status": "valid"
+        },
+        "URI": "https://acme-v02.api.letsencrypt.org/acme/acct/placeholder"
+      }
+    },
+    "Certificates": []
+  }
+}
