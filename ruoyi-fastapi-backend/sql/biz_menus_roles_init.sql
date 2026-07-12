@@ -135,7 +135,7 @@ VALUES
 -- 6. admin 挂全部菜单（幂等）
 -- =====================================================================
 INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
-  SELECT 1, menu_id FROM sys_menu WHERE status = '0' AND del_flag = '0';
+  SELECT 1, menu_id FROM sys_menu WHERE status = '0';
 
 -- =====================================================================
 -- 7. admin 额外挂 7 级审批角色（admin 同时是超管 + 业务经办，支持自己提交审批）

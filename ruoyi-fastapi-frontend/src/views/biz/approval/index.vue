@@ -46,8 +46,13 @@
 
     <!-- Tab 切换 -->
     <el-tabs v-model="activeTab" @tab-change="handleTabChange" class="approval-tabs">
-      <el-tab-pane label="待我审批" name="pending">
-        <span class="tab-badge" v-if="pendingTotal > 0">{{ pendingTotal }}</span>
+      <el-tab-pane name="pending">
+        <template #label>
+          <span class="tab-label">
+            待我审批
+            <span v-if="pendingTotal > 0" class="tab-badge">{{ pendingTotal }}</span>
+          </span>
+        </template>
       </el-tab-pane>
       <el-tab-pane label="我已审批" name="processed"></el-tab-pane>
       <el-tab-pane label="我提交的" name="submitted"></el-tab-pane>
@@ -416,6 +421,11 @@ onMounted(() => {
   margin-bottom: 8px;
 }
 
+.tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
 .tab-badge {
   display: inline-block;
   margin-left: 4px;
@@ -425,9 +435,11 @@ onMounted(() => {
   line-height: 18px;
   font-size: 12px;
   border-radius: 9px;
-  background: #f56c6c;
+  background: #e6a23c;
   color: #fff;
   text-align: center;
+  vertical-align: middle;
+  box-shadow: 0 0 6px rgba(230, 162, 60, 0.55);
 }
 
 .amount-text {
