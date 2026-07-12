@@ -8,6 +8,7 @@
 #   ./clean-cache.sh            # 清理缓存（保留日志）
 #   ./clean-cache.sh --logs     # 同时清理后端日志（容器会重新生成）
 #   ./clean-cache.sh --dry-run  # 只显示要删的内容，不实际删除
+#   ./clean-cache.sh --yes      # 跳过确认提示（适用于脚本/CI）
 # =============================================================================
 
 set -euo pipefail
@@ -17,17 +18,19 @@ cd "$SCRIPT_DIR"
 
 CLEAN_LOGS=0
 DRY_RUN=0
+SKIP_CONFIRM=0
 for arg in "$@"; do
     case "$arg" in
         --logs) CLEAN_LOGS=1 ;;
         --dry-run) DRY_RUN=1 ;;
+        --yes|-y) SKIP_CONFIRM=1 ;;
         -h|--help)
             sed -n '2,20p' "$0"
             exit 0
             ;;
         *)
             echo "未知参数: $arg" >&2
-            echo "用法: $0 [--logs] [--dry-run]" >&2
+            echo "用法: $0 [--logs] [--dry-run] [--yes]" >&2
             exit 2
             ;;
     esac
@@ -45,62 +48,79 @@ TOTAL_FOUND=0
 TOTAL_DELETED=0
 TOTAL_BYTES=0
 
+# 通用 find 排除过滤器（保护目录：.git / .venv / venv / node_modules 及其子树）
+FIND_EXCLUDES=(
+    \( -path './.git' -o -path './.git/*'
+    -o -path './.venv' -o -path './.venv/*'
+    -o -path './venv' -o -path './venv/*'
+    -o -path '*/node_modules' -o -path '*/node_modules/*' \)
+    -prune -o
+)
+
 # -----------------------------------------------------------------------------
-# 单条清理规则
-#   用法: clean_pattern "<描述>" <路径...>
+# 单条清理规则（混合文件 + 目录）
+#   - 文件名匹配 name：匹配所有该名称的文件
+#   - 目录名匹配 name：自动识别并递归删目录
+#   用法: clean_pattern "<描述>" <name...>
 # -----------------------------------------------------------------------------
 clean_pattern() {
     local desc="$1"; shift
     local targets=("$@")
-    local found_count=0
-    local deleted_count=0
-    local pattern_args=()
 
-    # 收集 find 参数（相对路径，排除 .git/.venv 等保护目录）
+    local all_targets=""
     for target in "${targets[@]}"; do
-        pattern_args+=( -name "$target" )
+        local file_part=""
+        local dir_part=""
+        # 文件
+        file_part=$(find . "${FIND_EXCLUDES[@]}" -name "$target" -type f -print 2>/dev/null || true)
+        # 目录（深度限制 6 层，避免扫太深）
+        dir_part=$(find . -maxdepth 6 "${FIND_EXCLUDES[@]}" -name "$target" -type d -print 2>/dev/null || true)
+        [[ -n "$file_part$dir_part" ]] && all_targets+="$file_part"$'\n'"$dir_part"$'\n'
     done
+    # 去空行
+    all_targets=$(echo "$all_targets" | grep -v '^$' || true)
 
-    local -a extra_args=()
-    if [[ $DRY_RUN -eq 1 ]]; then
-        # dry-run：只列文件
-        local files
-        files=$(find . \
-            \( -path './.git' -o -path './.venv' -o -path './venv' -o -path './node_modules' \) -prune -o \
-            \( "${pattern_args[@]}" \) -type f -print 2>/dev/null || true)
-        if [[ -n "$files" ]]; then
-            found_count=$(echo "$files" | wc -l | tr -d ' ')
-            echo -e "${C_DIM}  [dry-run]${C_RST} $desc: 匹配 $found_count 个"
-            while IFS= read -r f; do
-                [[ -z "$f" ]] && continue
-                echo "    $f"
-            done <<< "$files"
-            TOTAL_FOUND=$((TOTAL_FOUND + found_count))
-        fi
+    if [[ -z "$all_targets" ]]; then
+        echo -e "${C_DIM}  [skip]${C_RST} $desc: 无匹配"
         return
     fi
 
-    # 实际删除（先 dry 出列表再删，避免 find -delete 静默失败）
-    local files
-    files=$(find . \
-        \( -path './.git' -o -path './.venv' -o -path './venv' -o -path './node_modules' \) -prune -o \
-        \( "${pattern_args[@]}" \) -type f -print 2>/dev/null || true)
+    local found_count
+    found_count=$(echo "$all_targets" | wc -l | tr -d ' ')
+    local deleted_count=0
 
-    if [[ -z "$files" ]]; then
-        echo -e "${C_DIM}  [skip]${C_RST} $desc: 无匹配"
+    if [[ $DRY_RUN -eq 1 ]]; then
+        echo -e "${C_DIM}  [dry-run]${C_RST} $desc: 匹配 $found_count 个"
+        while IFS= read -r f; do
+            [[ -z "$f" ]] && continue
+            echo "    $f"
+        done <<< "$all_targets"
+        TOTAL_FOUND=$((TOTAL_FOUND + found_count))
         return
     fi
 
     while IFS= read -r f; do
         [[ -z "$f" ]] && continue
-        found_count=$((found_count + 1))
-        if rm -f "$f" 2>/dev/null; then
-            deleted_count=$((deleted_count + 1))
-            TOTAL_BYTES=$((TOTAL_BYTES + $(stat -f%z "$f" 2>/dev/null || echo 0)))
+        if [[ -d "$f" ]]; then
+            local sz
+            sz=$(du -sk "$f" 2>/dev/null | awk '{print $1}')
+            if rm -rf "$f" 2>/dev/null; then
+                deleted_count=$((deleted_count + 1))
+                TOTAL_BYTES=$((TOTAL_BYTES + ${sz:-0} * 1024))
+            else
+                echo -e "${C_RED}  [error]${C_RST} 删除失败: $f"
+            fi
         else
-            echo -e "${C_RED}  [error]${C_RST} 删除失败: $f"
+            local sz
+            sz=$(stat -f%z "$f" 2>/dev/null || echo 0)
+            if rm -f "$f" 2>/dev/null; then
+                deleted_count=$((deleted_count + 1))
+                TOTAL_BYTES=$((TOTAL_BYTES + sz))
+            else
+                echo -e "${C_RED}  [error]${C_RST} 删除失败: $f"
+            fi
         fi
-    done <<< "$files"
+    done <<< "$all_targets"
 
     echo -e "${C_GRN}  [ok]${C_RST} $desc: 删除 $deleted_count / 匹配 $found_count"
     TOTAL_FOUND=$((TOTAL_FOUND + found_count))
@@ -108,23 +128,19 @@ clean_pattern() {
 }
 
 # -----------------------------------------------------------------------------
-# 目录清理（递归删整棵树）
-#   用法: clean_dir "<描述>" <目录名...>
+# 目录清理（递归删整棵树，深度限制 6）
+#   用法: clean_dir "<描述>" <dir-name...>
 # -----------------------------------------------------------------------------
 clean_dir() {
     local desc="$1"; shift
     local targets=("$@")
     local -a dirs=()
-    local found_count=0
-    local deleted_count=0
 
     for target in "${targets[@]}"; do
-        # 限深 6 层，保护意外命中
         while IFS= read -r d; do
             [[ -z "$d" ]] && continue
             dirs+=("$d")
-        done < <(find . -maxdepth 6 \
-            \( -path './.git' -o -path './.venv' -o -path './venv' -o -path './node_modules' \) -prune -o \
+        done < <(find . -maxdepth 6 "${FIND_EXCLUDES[@]}" \
             -type d -name "$target" -print 2>/dev/null || true)
     done
 
@@ -133,13 +149,13 @@ clean_dir() {
         return
     fi
 
-    found_count=${#dirs[@]}
+    local found_count=${#dirs[@]}
+    local deleted_count=0
     for d in "${dirs[@]}"; do
-        # 统计字节数
         local size
         size=$(du -sk "$d" 2>/dev/null | awk '{print $1}')
         if [[ $DRY_RUN -eq 1 ]]; then
-            echo "    [dry-run] $d  ($size KB)"
+            echo "    [dry-run] $d  (${size:-0} KB)"
         else
             if rm -rf "$d" 2>/dev/null; then
                 deleted_count=$((deleted_count + 1))
@@ -164,26 +180,37 @@ clean_dir() {
 # -----------------------------------------------------------------------------
 echo "================================================================"
 echo "  smart-operation-platform 缓存清理"
-if [[ $DRY_RUN -eq 1 ]]; then
-    echo "  模式: DRY-RUN（不会实际删除）"
-fi
-if [[ $CLEAN_LOGS -eq 1 ]]; then
-    echo "  选项: 同时清理后端日志"
-fi
+[[ $DRY_RUN -eq 1 ]] && echo "  模式: DRY-RUN（不会实际删除）"
+[[ $CLEAN_LOGS -eq 1 ]] && echo "  选项: 同时清理后端日志"
 echo "  工作目录: $SCRIPT_DIR"
 echo "================================================================"
 
+# 实际执行前确认（dry-run / --yes 跳过）
+if [[ $DRY_RUN -eq 0 && $SKIP_CONFIRM -eq 0 ]]; then
+    echo ""
+    echo "即将清理下列缓存（保护目录：.git / .venv / venv / node_modules 不会动）："
+    echo "  - Python __pycache__ 与 .pyc/.pyo"
+    echo "  - macOS / 测试覆盖率 / Linter 缓存（.DS_Store / .coverage / .pytest_cache / .mypy_cache / .ruff_cache / .hypothesis）"
+    echo "  - 前端构建产物（dist / build / .eslintcache / .stylelintcache / .cache）"
+    echo "  - Python egg-info / pip 元数据"
+    echo "  - HTML 覆盖率报告 / 临时文件"
+    [[ $CLEAN_LOGS -eq 1 ]] && echo "  - 后端日志（logs/2026/*、backend.log）"
+    echo ""
+    read -rp "确认执行？[y/N] " answer
+    case "$answer" in
+        [Yy]|[Yy][Ee][Ss]) ;;
+        *) echo "已取消"; exit 0 ;;
+    esac
+fi
+
 echo ""
 echo -e "${C_YEL}[1/6] Python __pycache__ 与 .pyc/.pyo${C_RST}"
-clean_pattern "__pycache__ 目录" "__pycache__"
-clean_pattern ".pyc 文件"    "*.pyc"
-clean_pattern ".pyo 文件"    "*.pyo"
+clean_pattern "__pycache__ 目录 + .pyc + .pyo" "__pycache__" "*.pyc" "*.pyo"
 
 echo ""
 echo -e "${C_YEL}[2/6] macOS / 测试覆盖率 / Linter 缓存${C_RST}"
-clean_pattern ".DS_Store" ".DS_Store"
-clean_pattern ".coverage" ".coverage"
-clean_pattern ".coverage.*" ".coverage.*"
+clean_pattern ".DS_Store"  ".DS_Store"
+clean_pattern ".coverage + .coverage.*" ".coverage" ".coverage.*"
 clean_pattern ".pytest_cache" ".pytest_cache"
 clean_pattern ".mypy_cache" ".mypy_cache"
 clean_pattern ".ruff_cache" ".ruff_cache"
