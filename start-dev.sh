@@ -84,42 +84,36 @@ frontend_dist_stale() {
   [ -n "$newer" ]
 }
 
-# Docker 模式：自动构建/提示前端 dist
+# Docker 模式：--rebuild 时构建 dist，非 --rebuild 跳过构建并复用镜像
 ensure_frontend_dist() {
   if ! frontend_dist_stale; then
     log_info "  前端 dist: 最新，跳过构建 ✓"
     return 0
   fi
 
-  if [ "${REBUILD:-0}" = "1" ]; then
-    if [ ! -d "$FRONTEND_DIR/dist" ]; then
-      log_warn "  前端 dist 缺失"
-    else
-      log_warn "  前端源码比 dist 新，需要重新构建"
-    fi
-
-    local ans
-    read -r -p "  是否现在自动构建前端 dist? [Y/n] " ans
-    case "$ans" in
-      [nN]|[nN][oO])
-        log_warn "  跳过构建，Docker 镜像里将使用现有（可能过期）的 dist"
-        return 0
-        ;;
-    esac
-
-    log_info "  构建前端 dist..."
-    cd "$FRONTEND_DIR"
-    if [ ! -d "node_modules" ]; then
-      log_info "  安装前端依赖..."
-      npm install --no-audit --no-fund
-    fi
-    npm run build:docker
-    cd "$PROJECT_ROOT"
-    log_info "  前端 dist 构建完成 ✓"
+  if [ ! -d "$FRONTEND_DIR/dist" ]; then
+    log_warn "  前端 dist 缺失"
   else
-    log_warn "  前端 dist 已过期或缺失，非 --rebuild 模式将复用现有镜像"
-    log_warn "  如需更新前端，请使用: ./start-dev.sh --docker --rebuild"
+    log_warn "  前端 dist 已过期（源码比 dist 新）"
   fi
+
+  if [ "${REBUILD:-0}" != "1" ]; then
+    # 非 rebuild：复用镜像，镜像不存在则在镜像检查步骤里已 exit，无需额外处理
+    log_info "  非 --rebuild 模式：将复用现有镜像中的 dist"
+    log_info "  如需更新 dist，请使用: ./start-dev.sh --docker --rebuild"
+    return 0
+  fi
+
+  check_cmd npm
+  log_info "  构建前端 dist..."
+  cd "$FRONTEND_DIR"
+  if [ ! -d "node_modules" ]; then
+    log_info "  安装前端依赖..."
+    npm install --no-audit --no-fund
+  fi
+  npm run build:docker
+  cd "$PROJECT_ROOT"
+  log_info "  前端 dist 构建完成 ✓"
 }
 
 # ---- 本地进程管理 ----
@@ -492,6 +486,8 @@ run_docker_mode() {
   #   1. ruoyi-frontend / ruoyi-backend-my 任一镜像不存在 → 必须 build
   #   2. 镜像都存在 → 默认复用现有镜像（秒级 up -d），不传 --build
   #   3. 用户显式传 --rebuild → 强制全部重建
+  # 4. REBUILD=0 但镜像缺失时直接退出，避免触发隐式 build；
+  #    需要用户显式加 --rebuild 才允许构建镜像。
   log_step "检查镜像并启动..."
   local need_build_flag=""
   local build_args=()
@@ -499,16 +495,16 @@ run_docker_mode() {
     log_info "  用户指定 --rebuild，强制重建镜像"
     need_build_flag="--build --force-recreate --remove-orphans"
   else
+    local missing=()
     for img in ruoyi-frontend:latest ruoyi-backend-my:latest; do
-      if ! image_exists "$img"; then
-        log_info "  镜像 $img 缺失，需要构建"
-        need_build_flag="--build"
-        break
-      fi
+      image_exists "$img" || missing+=("$img")
     done
-    if [ -z "$need_build_flag" ]; then
-      log_info "  镜像均存在，复用现有镜像（秒级启动）"
+    if [ ${#missing[@]} -ne 0 ]; then
+      log_error "  以下镜像不存在: ${missing[*]}"
+      log_error "  请使用 --rebuild 首次构建镜像：./start-dev.sh --docker --rebuild"
+      exit 1
     fi
+    log_info "  镜像均存在，复用现有镜像（秒级启动）"
   fi
 
   # 透传镜像源配置到后端构建（默认阿里云）
