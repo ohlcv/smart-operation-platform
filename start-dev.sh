@@ -61,50 +61,6 @@ is_container_running() {
   docker ps --filter "name=$1" --format '{{.Names}}' 2>/dev/null | grep -q "^${1}$"
 }
 
-# 检查前端 dist 是否过期（源码比 dist 新 → 过期）
-# 返回值：0 过期，1 不需要重建
-frontend_dist_stale() {
-  local dist="$FRONTEND_DIR/dist"
-  [ ! -d "$dist" ] && return 0
-  # 找 src 或 package.json 中比 dist 最新的 index.html 更新的文件
-  local newer
-  newer=$(find -L "$FRONTEND_DIR/src" "$FRONTEND_DIR/package.json" "$FRONTEND_DIR/index.html" "$FRONTEND_DIR/vite.config.*" \
-    -type f -newer "$dist/index.html" 2>/dev/null | head -1)
-  [ -n "$newer" ]
-}
-
-# Docker 模式：--rebuild 时构建 dist，非 --rebuild 跳过构建并复用镜像
-ensure_frontend_dist() {
-  if ! frontend_dist_stale; then
-    log_info "  前端 dist: 最新，跳过构建 ✓"
-    return 0
-  fi
-
-  if [ ! -d "$FRONTEND_DIR/dist" ]; then
-    log_warn "  前端 dist 缺失"
-  else
-    log_warn "  前端 dist 已过期（源码比 dist 新）"
-  fi
-
-  if [ "${REBUILD:-0}" != "1" ]; then
-    # 非 rebuild：复用镜像，镜像不存在则在镜像检查步骤里已 exit，无需额外处理
-    log_info "  非 --rebuild 模式：将复用现有镜像中的 dist"
-    log_info "  如需更新 dist，请使用: ./start-dev.sh --docker --rebuild"
-    return 0
-  fi
-
-  check_cmd npm
-  log_info "  构建前端 dist..."
-  cd "$FRONTEND_DIR"
-  if [ ! -d "node_modules" ]; then
-    log_info "  安装前端依赖..."
-    npm install --no-audit --no-fund
-  fi
-  npm run build:docker
-  cd "$PROJECT_ROOT"
-  log_info "  前端 dist 构建完成 ✓"
-}
-
 # ---- 本地进程管理 ----
 is_port_in_use() {
   if command -v lsof &> /dev/null; then
@@ -502,9 +458,6 @@ run_docker_mode() {
     log_info "  自定义 PIP 镜像源: $PIP_INDEX_URL"
     build_args+=("--build-arg" "PIP_INDEX_URL=$PIP_INDEX_URL")
   fi
-
-  # 前端 dist 过期检查（如需构建则由 compose 在容器内 npm install；此处只判断 dist 是否存在）
-  ensure_frontend_dist
 
   cd "$PROJECT_ROOT"
   log_info "  启动容器..."
