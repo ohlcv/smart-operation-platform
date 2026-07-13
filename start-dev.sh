@@ -91,30 +91,35 @@ ensure_frontend_dist() {
     return 0
   fi
 
-  if [ ! -d "$FRONTEND_DIR/dist" ]; then
-    log_warn "  前端 dist 缺失"
+  if [ "${REBUILD:-0}" = "1" ]; then
+    if [ ! -d "$FRONTEND_DIR/dist" ]; then
+      log_warn "  前端 dist 缺失"
+    else
+      log_warn "  前端源码比 dist 新，需要重新构建"
+    fi
+
+    local ans
+    read -r -p "  是否现在自动构建前端 dist? [Y/n] " ans
+    case "$ans" in
+      [nN]|[nN][oO])
+        log_warn "  跳过构建，Docker 镜像里将使用现有（可能过期）的 dist"
+        return 0
+        ;;
+    esac
+
+    log_info "  构建前端 dist..."
+    cd "$FRONTEND_DIR"
+    if [ ! -d "node_modules" ]; then
+      log_info "  安装前端依赖..."
+      npm install --no-audit --no-fund
+    fi
+    npm run build:docker
+    cd "$PROJECT_ROOT"
+    log_info "  前端 dist 构建完成 ✓"
   else
-    log_warn "  前端源码比 dist 新，需要重新构建"
+    log_warn "  前端 dist 已过期或缺失，非 --rebuild 模式将复用现有镜像"
+    log_warn "  如需更新前端，请使用: ./start-dev.sh --docker --rebuild"
   fi
-
-  local ans
-  read -r -p "  是否现在自动构建前端 dist? [Y/n] " ans
-  case "$ans" in
-    [nN]|[nN][oO])
-      log_warn "  跳过构建，Docker 镜像里将使用现有（可能过期）的 dist"
-      return 0
-      ;;
-  esac
-
-  log_info "  构建前端 dist..."
-  cd "$FRONTEND_DIR"
-  if [ ! -d "node_modules" ]; then
-    log_info "  安装前端依赖..."
-    npm install --no-audit --no-fund
-  fi
-  npm run build:docker
-  cd "$PROJECT_ROOT"
-  log_info "  前端 dist 构建完成 ✓"
 }
 
 # ---- 本地进程管理 ----
