@@ -54,22 +54,11 @@ image_exists() {
 }
 
 # ---- Docker 容器管理 ----
-# 全部 5 个容器（本地模式和 Docker 模式都会用到 MySQL/Redis）
-ALL_CONTAINERS="ruoyi-mysql ruoyi-redis ruoyi-frontend ruoyi-backend-my ruoyi-pg"
+# 互斥检查用：本地的后端/前端进程 vs Docker 模式的同名容器
+INTERFERE_CONTAINERS="ruoyi-frontend ruoyi-backend-my"
 
 is_container_running() {
   docker ps --filter "name=$1" --format '{{.Names}}' 2>/dev/null | grep -q "^${1}$"
-}
-
-stop_all_containers() {
-  for name in $ALL_CONTAINERS; do
-    if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q "^${name}$"; then
-      if is_container_running "$name"; then
-        log_warn "  停止容器: $name"
-        docker rm -f "$name" > /dev/null 2>&1
-      fi
-    fi
-  done
 }
 
 # 检查前端 dist 是否过期（源码比 dist 新 → 过期）
@@ -590,40 +579,6 @@ run_docker_mode() {
 }
 
 # =============================================================================
-# 模式 C：停止所有服务
-# =============================================================================
-stop_all_mode() {
-  log_mode ""
-  log_mode "========================================"
-  log_mode "  停止所有服务"
-  log_mode "========================================"
-  echo ""
-
-  check_cmd docker
-
-  log_step "1/2 - 停止 Docker 容器..."
-  cd "$PROJECT_ROOT"
-  if docker compose -f "$DOCKER_COMPOSE_FILE" ps 2>/dev/null | grep -q ruoyi; then
-    docker compose -f "$DOCKER_COMPOSE_FILE" down
-  fi
-  stop_all_containers
-  echo "  ✓ 容器清理完毕"
-
-  log_step "2/2 - 停止本地进程..."
-  stop_local_processes
-  echo "  ✓ 本地进程清理完毕"
-
-  echo ""
-  echo "============================================"
-  log_mode "  全部停止完成"
-  echo "============================================"
-  echo "  数据卷保留（不会丢数据）。如需彻底清理："
-  echo "    docker volume rm \$(docker volume ls -q | grep ruoyi)"
-  echo "============================================"
-}
-
-
-# =============================================================================
 # 入口
 # =============================================================================
 main() {
@@ -632,7 +587,6 @@ main() {
   for arg in "$@"; do
     case $arg in
       --docker|-d) MODE="docker" ;;
-      --stop|-s)   MODE="stop" ;;
       --rebuild)   REBUILD=1 ;;
       --help|-h)   MODE="help" ;;
       *)           MODE="local" ;;
@@ -647,14 +601,12 @@ main() {
     echo "  (默认)        本地开发模式：Docker MySQL/Redis + 本地前后端"
     echo "  --docker      Docker 容器模式：全容器，模拟生产环境"
     echo "  --rebuild     Docker 模式：强制重建镜像（搭配 --docker 使用）"
-    echo "  --stop        停止所有服务（容器 + 本地进程）"
     echo "  --help        显示帮助"
     exit 0
   fi
 
   case "$MODE" in
     docker) run_docker_mode ;;
-    stop)   stop_all_mode ;;
     *)      run_local_mode ;;
   esac
 }
