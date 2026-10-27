@@ -17,7 +17,7 @@ repos:
       # 临时禁用本地钩子，避免 Cursor 内置 Git 在 import 钩子时出错
       # - id: check-orm-alembic-sync
       #   name: ORM ↔ Alembic 同步检查
-      #   entry: python3 /Users/meow/Desktop/Project/smart-operation-platform/ruoyi-fastapi-backend/.pre-commit-hooks/check_orm_alembic_sync.py
+      #   entry: python3 /Users/meow/Projects/smart-operation-platform/ruoyi-fastapi-backend/.pre-commit-hooks/check_orm_alembic_sync.py
       #   language: system
       #   pass_filenames: false
       #   files: '(ruoyi-fastapi-backend/module_(admin|biz)/entity/do/.*\.py|alembic/versions/.*\.py)$'

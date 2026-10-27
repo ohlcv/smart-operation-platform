@@ -107,7 +107,7 @@ grep -rn "^def .* ->.*Async" --include="*.py" ruoyi-fastapi-backend/
 ## 8. 复盘验证
 
 ```bash
-cd /Users/meow/Desktop/Project/smart-operation-platform/ruoyi-fastapi-backend
+cd /Users/meow/Projects/smart-operation-platform/ruoyi-fastapi-backend
 python3 -m py_compile config/get_db.py   # ✅ syntax OK
 python3 -c "from config.get_db import get_db, run_alembic_upgrade, close_async_engine"  # ✅ 不报错
 ```

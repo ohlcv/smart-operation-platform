@@ -9,10 +9,10 @@ import os
 import re
 
 CONTROLLERS = [
-    '/Users/meow/Desktop/Project/smart-operation-platform/ruoyi-fastapi-backend/module_biz/controller/channel_controller.py',
-    '/Users/meow/Desktop/Project/smart-operation-platform/ruoyi-fastapi-backend/module_biz/controller/invoice_controller.py',
-    '/Users/meow/Desktop/Project/smart-operation-platform/ruoyi-fastapi-backend/module_biz/controller/finance_controller.py',
-    '/Users/meow/Desktop/Project/smart-operation-platform/ruoyi-fastapi-backend/module_biz/controller/operation_controller.py',
+    '/Users/meow/Projects/smart-operation-platform/ruoyi-fastapi-backend/module_biz/controller/channel_controller.py',
+    '/Users/meow/Projects/smart-operation-platform/ruoyi-fastapi-backend/module_biz/controller/invoice_controller.py',
+    '/Users/meow/Projects/smart-operation-platform/ruoyi-fastapi-backend/module_biz/controller/finance_controller.py',
+    '/Users/meow/Projects/smart-operation-platform/ruoyi-fastapi-backend/module_biz/controller/operation_controller.py',
 ]
 
 import ast

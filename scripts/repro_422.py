@@ -11,8 +11,8 @@ import sys
 # 必须先加载 .env.merged（合并 .env.dev + .env.local），与 uvicorn 启动一致
 from dotenv import load_dotenv
 
-sys.path.insert(0, '/Users/meow/Desktop/Project/smart-operation-platform/ruoyi-fastapi-backend')
-load_dotenv('/Users/meow/Desktop/Project/smart-operation-platform/ruoyi-fastapi-backend/.env.merged', override=True)
+sys.path.insert(0, '/Users/meow/Projects/smart-operation-platform/ruoyi-fastapi-backend')
+load_dotenv('/Users/meow/Projects/smart-operation-platform/ruoyi-fastapi-backend/.env.merged', override=True)
 
 # 强制使用与生产一致的端口
 os.environ['DB_PORT'] = '13306'

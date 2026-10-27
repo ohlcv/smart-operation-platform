@@ -214,7 +214,7 @@ docker run mysql:8.0 \
 3. **dry-run 预览（仅当有历史数据损坏时需要）**
 
    ```bash
-   cd /Users/meow/Desktop/Project/smart-operation-platform
+   cd /Users/meow/Projects/smart-operation-platform
    python3 scripts/fix_double_utf8.py --dry-run
    ```
 

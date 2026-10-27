@@ -22,7 +22,7 @@
 pip install pre-commit
 
 # 2. 安装钩子（会在 .git/hooks/pre-commit 注册）
-cd /Users/meow/Desktop/Project/smart-operation-platform
+cd /Users/meow/Projects/smart-operation-platform
 pre-commit install
 ```
 

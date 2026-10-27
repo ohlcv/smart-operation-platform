@@ -489,7 +489,7 @@ operation_do.py / invoice_do.py / finance_do.py 与 contract_do.py 完全同形�
 
 ```bash
 # 1. ORM import 检查（必须能跨方言 import）
-cd /Users/meow/Desktop/Project/smart-operation-platform/ruoyi-fastapi-backend
+cd /Users/meow/Projects/smart-operation-platform/ruoyi-fastapi-backend
 python3 -c "
 from module_biz.entity.do import (
     contract_do, invoice_do, channel_do, operation_do, finance_do, customer_do

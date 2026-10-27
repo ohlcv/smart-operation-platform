@@ -285,8 +285,8 @@ ssh root@150.158.53.137
 
 ```bash
 # 1. 删除错误文件
-rm ~/Desktop/Project/smart-operation-platform/ssh-copy-id\ root@150.158.53.137
-rm ~/Desktop/Project/smart-operation-platform/ssh-copy-id\ root@150.158.53.137.pub
+rm ~/Projects/smart-operation-platform/ssh-copy-id\ root@150.158.53.137
+rm ~/Projects/smart-operation-platform/ssh-copy-id\ root@150.158.53.137.pub
 
 # 2. 重新生成到正确位置
 ssh-keygen -t ed25519 -C "备注"

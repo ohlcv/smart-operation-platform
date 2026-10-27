@@ -215,7 +215,7 @@ const url = ref('/proxy-docs')
 ps aux | grep -E "uvicorn|fastapi" | grep -v grep
 
 # 2) 启动前端 dev server
-cd /Users/meow/Desktop/Project/smart-operation-platform/ruoyi-fastapi-frontend
+cd /Users/meow/Projects/smart-operation-platform/ruoyi-fastapi-frontend
 npm run dev     # 监听 80（如已占用会自动 +1，本机此次观察到 8080）
 
 # 3) 浏览器 DevTools Network 面板检查「系统接口」页面：
