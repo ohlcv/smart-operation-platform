@@ -24,7 +24,8 @@ services:
       # Let's Encrypt 自动申请证书
       - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
       - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
-      - "--certificatesresolvers.letsencrypt.acme.email=your-email@meowquant.site"
+      # 邮箱从环境变量读取，真实值放在本地 .env，不提交到仓库
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:-your-email@example.com}"
       - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
       # Docker 自动发现
       - "--providers.docker=true"
